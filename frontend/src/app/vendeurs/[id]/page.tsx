@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useParams } from 'next/navigation';
 import { PageHeader } from '../../../components/layout/PageHeader';
@@ -9,23 +9,62 @@ import { EmptyState } from '../../../components/ui/EmptyState';
 import { translateSellerType } from '../../../utils/format';
 import { IconCheck, IconPlant, IconShieldCheck, IconLocation, IconStar, IconPhone, IconBuilding } from '../../../components/ui/Icons';
 import { MOCK_SELLERS, MOCK_OFFERS } from '../../../data/mockData';
+import { api } from '../../../services/api';
+import { SellerOfferItem, SellerProfile } from '../../../types';
 
 export default function SellerProfilePage() {
   const params = useParams();
   const sellerId = params?.id as string;
 
-  const seller = useMemo(() => {
-    return (
-      MOCK_SELLERS.find((s) => s.id === sellerId) ||
-      MOCK_SELLERS[0]! // Fallback
-    );
+  const [seller, setSeller] = useState<SellerProfile>(() => {
+    return (MOCK_SELLERS.find((s) => s.id === sellerId) || MOCK_SELLERS[0]!) as unknown as SellerProfile;
+  });
+  const [offers, setOffers] = useState<SellerOfferItem[]>(MOCK_OFFERS);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+    async function fetchSellerData() {
+      try {
+        const [sellerRes, offersRes] = await Promise.all([
+          api.sellers.getById(sellerId),
+          api.offers.list({ sellerId }),
+        ]);
+        if (mounted) {
+          if (sellerRes && sellerRes.id) {
+            setSeller(sellerRes);
+          }
+          if (Array.isArray(offersRes) && offersRes.length > 0) {
+            setOffers(offersRes);
+          }
+        }
+      } catch (err) {
+        console.error('Erreur chargement vendeur:', err);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
+    fetchSellerData();
+    return () => {
+      mounted = false;
+    };
   }, [sellerId]);
 
   const sellerOffers = useMemo(() => {
-    return MOCK_OFFERS.filter((o) => o.sellerId === seller.id);
-  }, [seller]);
+    return offers.filter((o) => o.sellerId === seller.id || o.sellerId === sellerId);
+  }, [offers, seller, sellerId]);
 
   const sellerInfo = translateSellerType(seller.sellerType);
+
+  const coverUrl = seller.coverUrl || 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&q=80&w=800';
+  const avatarUrl = seller.avatarUrl || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=300';
+  const joinDate = seller.joinDate || 'Janvier 2024';
+  const totalSales = seller.totalSales ?? 120;
+  const rating = seller.rating ?? 4.8;
+  const reviewsCount = seller.reviewsCount ?? 14;
+  const specialties = seller.specialties || ['Productions locales', 'Approvisionnement direct'];
+  const badges = seller.badges || ['Certifié AgroConnect', 'Livraison disponible'];
+  const phone = seller.phone || '+243 81 234 5678';
 
   if (!seller) {
     return (
@@ -42,7 +81,7 @@ export default function SellerProfilePage() {
     <div className="bg-stone-50 min-h-screen pb-20">
       <PageHeader
         title={seller.businessName}
-        subtitle={`Vendeur référencé en RDC depuis ${seller.joinDate} • ${seller.city}, Province du ${seller.province}`}
+        subtitle={`Vendeur référencé en RDC depuis ${joinDate} • ${seller.city}, Province du ${seller.province}`}
         breadcrumbs={[
           { label: 'Accueil', href: '/' },
           { label: 'Vendeurs', href: '/#vendeurs' },
@@ -56,7 +95,7 @@ export default function SellerProfilePage() {
           {/* Cover image */}
           <div className="relative h-48 sm:h-64 w-full bg-emerald-950">
             <Image
-              src={seller.coverUrl}
+              src={coverUrl}
               alt={seller.businessName}
               fill
               className="object-cover"
@@ -70,7 +109,7 @@ export default function SellerProfilePage() {
               <div className="flex items-end gap-5">
                 <div className="relative w-28 h-28 sm:w-36 sm:h-36 rounded-3xl overflow-hidden border-4 border-white shadow-lg bg-stone-100 shrink-0">
                   <Image
-                    src={seller.avatarUrl}
+                    src={avatarUrl}
                     alt={seller.businessName}
                     fill
                     className="object-cover"
@@ -93,7 +132,7 @@ export default function SellerProfilePage() {
                   </h1>
                   <p className="text-xs sm:text-sm text-stone-500 flex items-center gap-1 mt-1 font-medium">
                     <IconLocation className="w-4 h-4 text-stone-400" />
-                    <span>{seller.address}, {seller.city} ({seller.province}, RDC)</span>
+                    <span>{seller.address || seller.city}, {seller.city} ({seller.province}, RDC)</span>
                   </p>
                 </div>
               </div>
@@ -103,16 +142,16 @@ export default function SellerProfilePage() {
                 <div className="text-center px-2">
                   <div className="flex items-center gap-1 justify-center text-sm font-black text-stone-900">
                     <IconStar className="w-4 h-4 text-amber-500 fill-amber-500" />
-                    <span>{seller.rating}</span>
+                    <span>{rating}</span>
                   </div>
                   <span className="text-[10px] text-stone-400 uppercase font-bold tracking-wider">
-                    {seller.reviewsCount} avis clients
+                    {reviewsCount} avis clients
                   </span>
                 </div>
                 <div className="h-8 w-[1px] bg-stone-200" />
                 <div className="text-center px-2">
                   <span className="text-sm font-black text-stone-900 block">
-                    {seller.totalSales}
+                    {totalSales}
                   </span>
                   <span className="text-[10px] text-stone-400 uppercase font-bold tracking-wider">
                     Expéditions réussies
@@ -137,13 +176,13 @@ export default function SellerProfilePage() {
                     Spécialités & Engagements
                   </h4>
                   <div className="flex flex-wrap gap-2">
-                    {seller.specialties.map((spec) => (
+                    {specialties.map((spec: string) => (
                       <span key={spec} className="text-xs bg-stone-100 text-stone-700 font-semibold px-3 py-1 rounded-lg inline-flex items-center gap-1">
                         <IconPlant className="w-3.5 h-3.5 text-emerald-700" aria-hidden="true" />
                         {spec}
                       </span>
                     ))}
-                    {seller.badges.map((b) => (
+                    {badges.map((b: string) => (
                       <span key={b} className="text-xs bg-emerald-50 text-emerald-800 border border-emerald-200 font-semibold px-3 py-1 rounded-lg inline-flex items-center gap-1">
                         <IconCheck className="w-3.5 h-3.5" aria-hidden="true" />
                         {b}
@@ -158,7 +197,7 @@ export default function SellerProfilePage() {
                 <h4 className="font-bold text-stone-900 text-sm">Informations Commerciales</h4>
                 <div className="flex items-center gap-2 text-stone-600">
                   <IconPhone className="w-4 h-4 text-emerald-800" />
-                  <span>Support commande : {seller.phone}</span>
+                  <span>Support commande : {phone}</span>
                 </div>
                 <div className="flex items-center gap-2 text-stone-600">
                   <IconBuilding className="w-4 h-4 text-emerald-800" />

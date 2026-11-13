@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, Suspense } from 'react';
+import React, { useState, useMemo, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { PageHeader } from '../../components/layout/PageHeader';
 import { ProductCard } from '../../components/marketplace/ProductCard';
@@ -10,6 +10,8 @@ import { Input } from '../../components/ui/Input';
 import { IconSearch } from '../../components/ui/Icons';
 import { MOCK_OFFERS, MOCK_SELLERS } from '../../data/mockData';
 import { DRC_PROVINCES } from '../../constants/drc';
+import { api } from '../../services/api';
+import { SellerOfferItem, SellerProfile } from '../../types';
 
 function SearchResultsContent() {
   const searchParams = useSearchParams();
@@ -19,9 +21,40 @@ function SearchResultsContent() {
   const [query, setQuery] = useState(initialQuery);
   const [province, setProvince] = useState(initialProvince);
   const [activeTab, setActiveTab] = useState<'all' | 'offers' | 'sellers'>('all');
+  const [offers, setOffers] = useState<SellerOfferItem[]>(MOCK_OFFERS);
+  const [sellers, setSellers] = useState<SellerProfile[]>(MOCK_SELLERS as unknown as SellerProfile[]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+    async function loadData() {
+      try {
+        const [offersRes, sellersRes] = await Promise.all([
+          api.offers.list(),
+          api.sellers.list(),
+        ]);
+        if (mounted) {
+          if (Array.isArray(offersRes) && offersRes.length > 0) {
+            setOffers(offersRes);
+          }
+          if (Array.isArray(sellersRes) && sellersRes.length > 0) {
+            setSellers(sellersRes);
+          }
+        }
+      } catch (err) {
+        console.error('Erreur chargement recherche:', err);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
+    loadData();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const matchingOffers = useMemo(() => {
-    return MOCK_OFFERS.filter((o) => {
+    return offers.filter((o) => {
       const q = query.toLowerCase().trim();
       const matchText =
         !q ||
@@ -34,22 +67,22 @@ function SearchResultsContent() {
 
       return matchText && matchProv;
     });
-  }, [query, province]);
+  }, [offers, query, province]);
 
   const matchingSellers = useMemo(() => {
-    return MOCK_SELLERS.filter((s) => {
+    return sellers.filter((s) => {
       const q = query.toLowerCase().trim();
       const matchText =
         !q ||
         s.businessName.toLowerCase().includes(q) ||
         s.city.toLowerCase().includes(q) ||
-        s.specialties.some((spec) => spec.toLowerCase().includes(q));
+        (s.specialties && s.specialties.some((spec: string) => spec.toLowerCase().includes(q)));
 
       const matchProv = province === 'all' || s.province === province;
 
       return matchText && matchProv;
     });
-  }, [query, province]);
+  }, [sellers, query, province]);
 
   const totalResults = matchingOffers.length + matchingSellers.length;
 

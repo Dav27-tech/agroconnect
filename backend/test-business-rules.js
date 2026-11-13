@@ -105,8 +105,8 @@ async function runBusinessRuleTests() {
   assert(registerRes.status === 201, `L'inscription multi-rôles doit retourner 201 (reçu: ${registerRes.status})`);
   assert(
     Array.isArray(registerRes.body.data.user.roles) &&
-      registerRes.body.data.user.roles.includes('SELLER') &&
-      registerRes.body.data.user.roles.includes('BUYER'),
+    registerRes.body.data.user.roles.includes('SELLER') &&
+    registerRes.body.data.user.roles.includes('BUYER'),
     'L\'utilisateur doit cumuler les rôles SELLER et BUYER'
   );
   const multiRoleToken = registerRes.body.data.token;

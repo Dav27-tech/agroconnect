@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useParams } from 'next/navigation';
 import { useCurrency } from '../../../context/CurrencyContext';
+import { useCart } from '../../../context/CartContext';
 import { PageHeader } from '../../../components/layout/PageHeader';
 import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
@@ -65,7 +66,10 @@ export default function ProductDetailPage() {
 
   const sellerInfo = translateSellerType(activeOffer.sellerType);
 
+  const { addToCart } = useCart();
+
   const handleAddToCart = () => {
+    addToCart(activeOffer, quantity, isWholesale ? 'WHOLESALE' : 'RETAIL');
     setAddedToCart(true);
     setTimeout(() => setAddedToCart(false), 3000);
   };

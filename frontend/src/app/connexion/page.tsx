@@ -2,39 +2,47 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '../../context/AuthContext';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { IconCheck, IconPhone, IconPlant, IconShieldCheck } from '../../components/ui/Icons';
 
 export default function LoginPage() {
-  const [phone, setPhone] = useState('');
-  const [password, setPassword] = useState('');
+  const router = useRouter();
+  const { login } = useAuth();
+  const [phone, setPhone] = useState('+243818001122');
+  const [password, setPassword] = useState('AdminAgro2026!');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [success, setSuccess] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setErrorMessage('');
 
-    // Simulation d'authentification connectée aux identifiants backend
-    setTimeout(() => {
-      setIsLoading(false);
-      if (phone.length < 9) {
-        setErrorMessage('Veuillez entrer un numéro de téléphone congolais valide (+243...).');
-        return;
-      }
+    try {
+      await login(phone, password);
       setSuccess(true);
-    }, 1000);
+      setTimeout(() => {
+        router.push('/catalogue');
+      }, 1200);
+    } catch (err) {
+      setErrorMessage(
+        (err as Error).message || 'Échec de connexion. Vérifiez votre numéro de téléphone ou votre mot de passe.'
+      );
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
     <div className="min-h-screen bg-stone-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <Link href="/" className="flex items-center justify-center gap-2 mb-6">
-          <div className="w-12 h-12 rounded-2xl bg-emerald-800 text-white flex items-center justify-center shadow-sm">
+          <div className="w-12 h-12 rounded-2xl bg-emerald-800 text-white flex items-center justify-center shadow-xs">
             <IconPlant className="w-7 h-7" aria-hidden="true" />
           </div>
           <span className="text-2xl font-black text-stone-900">
@@ -60,11 +68,18 @@ export default function LoginPage() {
               <p className="text-xs text-emerald-800">
                 Bienvenue sur AgroConnect RDC. Redirection en cours...
               </p>
-              <Link href="/catalogue" className="block pt-2">
-                <Button variant="primary" size="sm" className="w-full">
-                  Accéder au Catalogue
-                </Button>
-              </Link>
+              <div className="pt-2 flex flex-col gap-2">
+                <Link href="/vendeur/dashboard">
+                  <Button variant="primary" size="sm" className="w-full">
+                    🌾 Accéder à l&apos;Espace Vendeur
+                  </Button>
+                </Link>
+                <Link href="/catalogue">
+                  <Button variant="outline" size="sm" className="w-full">
+                    Voir le Catalogue Produits
+                  </Button>
+                </Link>
+              </div>
             </div>
           ) : (
             <form onSubmit={handleLogin} className="space-y-5">
@@ -97,7 +112,7 @@ export default function LoginPage() {
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="text-xs text-stone-500 hover:text-stone-800 font-medium focus:outline-none"
+                      className="text-xs text-stone-500 hover:text-stone-800 font-medium focus:outline-none cursor-pointer"
                     >
                       {showPassword ? 'Masquer' : 'Afficher'}
                     </button>
@@ -107,7 +122,7 @@ export default function LoginPage() {
 
               <div className="flex items-center justify-between text-xs">
                 <label className="flex items-center gap-2 cursor-pointer text-stone-600">
-                  <input type="checkbox" className="rounded text-emerald-800 focus:ring-emerald-700" />
+                  <input type="checkbox" className="rounded text-emerald-800 focus:ring-emerald-700" defaultChecked />
                   <span>Se souvenir de moi</span>
                 </label>
                 <Link href="/contact" className="text-emerald-800 hover:text-emerald-900 font-bold">
@@ -119,7 +134,7 @@ export default function LoginPage() {
                 type="submit"
                 variant="primary"
                 size="lg"
-                className="w-full"
+                className="w-full cursor-pointer"
                 isLoading={isLoading}
               >
                 Se connecter

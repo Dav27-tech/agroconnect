@@ -414,3 +414,63 @@ export const MOCK_OFFERS: SellerOfferItem[] = [
     imageUrl: 'https://images.unsplash.com/photo-1525607551316-4a8e16d1f9ba?auto=format&fit=crop&q=80&w=800',
   },
 ];
+
+export const MOCK_DELIVERIES = {
+  id: 'del-demo-01',
+  trackingCode: 'AGC-LIV-DEMO-001',
+  subOrderId: 'sub-demo-01',
+  subOrderNumber: 'SO-20261113-0001',
+  sellerName: 'Coopérative Agricole du Kwilu (COOPAK)',
+  status: 'IN_TRANSIT' as const,
+  origin: {
+    province: 'Kwilu',
+    city: 'Kikwit',
+    address: 'Entrepôt COOPAK, Route Nationale 1',
+  },
+  destination: {
+    province: 'Kinshasa',
+    city: 'Kinshasa',
+    address: 'Commune de Limete, 7ème Rue Résidentiel',
+  },
+  courier: {
+    companyName: 'Trans-Kwilu Express & Fret',
+    vehicleType: 'Camion benne 10T bâché',
+    plateNumber: 'KN-8492-BG',
+    operatingArea: 'Kwilu - Kinshasa RN1',
+  },
+  estimatedDeliveryAt: '2026-11-15T16:00:00Z',
+  statusHistory: [
+    {
+      id: 'evt-1',
+      deliveryId: 'del-demo-01',
+      status: 'PENDING' as const,
+      location: 'Kikwit (Kwilu)',
+      notes: 'Demande de prise en charge enregistrée',
+      createdAt: '2026-11-13T08:00:00Z',
+    },
+    {
+      id: 'evt-2',
+      deliveryId: 'del-demo-01',
+      status: 'ASSIGNED' as const,
+      location: 'Kikwit (Kwilu)',
+      notes: 'Transporteur Trans-Kwilu affecté à la cargaison',
+      createdAt: '2026-11-13T09:30:00Z',
+    },
+    {
+      id: 'evt-3',
+      deliveryId: 'del-demo-01',
+      status: 'PICKED_UP' as const,
+      location: 'Kikwit (Kwilu)',
+      notes: 'Chargement effectué au dépôt COOPAK, sacs inspectés',
+      createdAt: '2026-11-13T11:00:00Z',
+    },
+    {
+      id: 'evt-4',
+      deliveryId: 'del-demo-01',
+      status: 'IN_TRANSIT' as const,
+      location: 'En route RN1 vers Kinshasa (Proche de Kenge)',
+      notes: 'Convoi en progression normale sur la RN1',
+      createdAt: '2026-11-13T15:30:00Z',
+    },
+  ],
+};

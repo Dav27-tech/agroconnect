@@ -1,15 +1,35 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { MOCK_OFFERS } from '../../data/mockData';
 import { useCurrency } from '../../context/CurrencyContext';
 import { ProductCard } from './ProductCard';
 import { IconChevronRight } from '../ui/Icons';
+import { api } from '../../services/api';
+import { SellerOfferItem } from '../../types';
 
 export function FeaturedOffers() {
   const { currency } = useCurrency();
-  const offers = MOCK_OFFERS.slice(0, 4);
+  const [offers, setOffers] = useState<SellerOfferItem[]>(() => MOCK_OFFERS.slice(0, 4));
+
+  useEffect(() => {
+    let mounted = true;
+    async function loadOffers() {
+      try {
+        const res = await api.offers.list();
+        if (mounted && Array.isArray(res) && res.length > 0) {
+          setOffers(res.slice(0, 4));
+        }
+      } catch (err) {
+        console.error('Erreur chargement offres vedettes:', err);
+      }
+    }
+    loadOffers();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   return (
     <section className="py-16 sm:py-20 bg-white">

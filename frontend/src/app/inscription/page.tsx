@@ -2,6 +2,8 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '../../context/AuthContext';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { DRC_PROVINCES } from '../../constants/drc';
@@ -9,6 +11,8 @@ import { IconCart, IconCheck, IconPlant, IconShieldCheck, IconPhone, IconTruck }
 import { UserRole } from '../../types';
 
 export default function RegisterPage() {
+  const router = useRouter();
+  const { register } = useAuth();
   const [selectedRole, setSelectedRole] = useState<UserRole>('BUYER');
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
@@ -18,6 +22,7 @@ export default function RegisterPage() {
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [registered, setRegistered] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const roleOptions: Array<{ role: UserRole; title: string; desc: string; icon: React.ReactNode }> = [
     {
@@ -28,34 +33,55 @@ export default function RegisterPage() {
     },
     {
       role: 'SELLER',
-      title: 'Agriculteur / Producteur',
-      desc: 'Vendre mes récoltes directes aux meilleurs prix sans intermédiaire.',
+      title: 'Agriculteur / Vendeur',
+      desc: 'Vendre mes récoltes directes ou intrants sans intermédiaire.',
       icon: <IconPlant className="w-6 h-6" aria-hidden="true" />,
     },
     {
       role: 'DELIVERY_PROVIDER',
       title: 'Transporteur & Logistique',
-      desc: 'Prendre en charge l\'acheminement et le fret urbain ou inter-provinces.',
+      desc: 'Acheminement et fret agricole urbain ou inter-provinces.',
       icon: <IconTruck className="w-6 h-6" aria-hidden="true" />,
     },
   ];
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!agreeTerms) return;
 
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
+    setErrorMessage('');
+
+    try {
+      const assignedRoles = selectedRole === 'SELLER' ? ['SELLER', 'BUYER'] : [selectedRole];
+      await register({
+        phoneNumber: phone,
+        fullName,
+        password,
+        role: selectedRole,
+        roles: assignedRoles,
+      });
+
       setRegistered(true);
-    }, 1200);
+      setTimeout(() => {
+        if (selectedRole === 'SELLER') {
+          router.push('/vendeur/dashboard');
+        } else {
+          router.push('/catalogue');
+        }
+      }, 1500);
+    } catch (err) {
+      setErrorMessage((err as Error).message || 'Erreur lors de l\'inscription. Veuillez vérifier les informations saisies.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
     <div className="min-h-screen bg-stone-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-xl mx-auto">
         <Link href="/" className="flex items-center justify-center gap-2 mb-6">
-          <div className="w-11 h-11 rounded-2xl bg-emerald-800 text-white flex items-center justify-center shadow-sm">
+          <div className="w-11 h-11 rounded-2xl bg-emerald-800 text-white flex items-center justify-center shadow-xs">
             <IconPlant className="w-6 h-6" aria-hidden="true" />
           </div>
           <span className="text-2xl font-black text-stone-900">
@@ -82,139 +108,143 @@ export default function RegisterPage() {
                 Compte Créé avec Succès !
               </h2>
               <p className="text-xs text-emerald-800 leading-relaxed max-w-md mx-auto">
-                Bienvenue sur AgroConnect RDC, {fullName}. Votre profil a été enregistré avec le numéro {phone} dans la province de {province}.
+                Bienvenue sur AgroConnect RDC, {fullName}. Votre profil a été enregistré avec succès. Redirection en cours...
               </p>
               <div className="pt-4 flex flex-col gap-2">
-                <Link href="/catalogue">
+                <Link href={selectedRole === 'SELLER' ? '/vendeur/dashboard' : '/catalogue'}>
                   <Button variant="primary" size="md" className="w-full">
-                    Explorer le Catalogue
-                  </Button>
-                </Link>
-                <Link href="/connexion">
-                  <Button variant="outline" size="sm" className="w-full">
-                    Se connecter à mon compte
+                    {selectedRole === 'SELLER' ? 'Accéder à mon Espace Vendeur' : 'Explorer le Catalogue'}
                   </Button>
                 </Link>
               </div>
             </div>
           ) : (
             <form onSubmit={handleRegister} className="space-y-6">
-              {/* Role Selection */}
+              {errorMessage && (
+                <div className="p-3 text-xs bg-red-50 text-red-700 border border-red-200 rounded-xl font-medium">
+                  {errorMessage}
+                </div>
+              )}
+
+              {/* Sélection du Profil / Rôle */}
               <div>
-                <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-2.5">
-                  1. Votre Profil sur la Plateforme *
+                <label className="block text-xs font-bold uppercase tracking-wider text-stone-700 mb-2">
+                  Votre activité sur la plateforme *
                 </label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {roleOptions.map((opt) => (
-                    <button
-                      type="button"
-                      key={opt.role}
-                      onClick={() => setSelectedRole(opt.role)}
-                      aria-pressed={selectedRole === opt.role}
-                      className={`w-full text-left p-3.5 rounded-2xl border cursor-pointer transition flex flex-col justify-between ${selectedRole === opt.role
-                          ? 'border-emerald-700 bg-emerald-50/60 ring-2 ring-emerald-700/20'
-                          : 'border-stone-200 hover:border-stone-300 bg-stone-50/50'
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  {roleOptions.map((opt) => {
+                    const isSelected = selectedRole === opt.role;
+                    return (
+                      <button
+                        key={opt.role}
+                        type="button"
+                        onClick={() => setSelectedRole(opt.role)}
+                        className={`p-3 rounded-2xl border text-left transition flex flex-col justify-between cursor-pointer ${
+                          isSelected
+                            ? 'border-emerald-800 bg-emerald-50/60 ring-2 ring-emerald-800/20'
+                            : 'border-stone-200 hover:border-stone-300 bg-white'
                         }`}
-                    >
-                      <div>
-                        <span className="text-emerald-800 mb-1.5 block">{opt.icon}</span>
-                        <h4 className="text-xs font-bold text-stone-900 leading-tight mb-1">
-                          {opt.title}
-                        </h4>
-                        <p className="text-[10px] text-stone-500 leading-snug">
-                          {opt.desc}
-                        </p>
-                      </div>
-                    </button>
-                  ))}
+                      >
+                        <div className={isSelected ? 'text-emerald-800' : 'text-stone-400'}>
+                          {opt.icon}
+                        </div>
+                        <div className="mt-2">
+                          <p className="text-xs font-bold text-stone-900 leading-tight">{opt.title}</p>
+                          <p className="text-[10px] text-stone-500 mt-1 line-clamp-2">{opt.desc}</p>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
-              {/* Personal & Business Info */}
-              <div className="space-y-4 pt-4 border-t border-stone-100">
-                <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider">
-                  2. Coordonnées en RDC
-                </label>
-
+              {/* Nom & Téléphone */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Input
-                  label="Nom complet ou Dénomination Commerciale *"
-                  placeholder="Ex: Coopérative Agricole de Bandundu"
+                  label="Nom complet ou Coopérative *"
+                  placeholder="ex: Papa Jean-Pierre Kabamba"
                   required
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                 />
 
                 <Input
-                  label="Numéro de Téléphone (Mobile Money) *"
-                  placeholder="+243 81..."
+                  label="Numéro de Téléphone (RDC) *"
+                  placeholder="+243818001122"
                   type="tel"
                   required
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   leftIcon={<IconPhone className="w-4 h-4 text-stone-400" />}
-                  helperText="Sert d'identifiant de connexion et de réception des paiements"
-                />
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
-                      Province RDC *
-                    </label>
-                    <select
-                      value={province}
-                      onChange={(e) => setProvince(e.target.value)}
-                      className="w-full text-xs font-semibold text-stone-700 bg-white border border-stone-300 rounded-xl p-3 outline-none cursor-pointer"
-                    >
-                      {DRC_PROVINCES.map((p) => (
-                        <option key={p} value={p}>
-                          {p}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <Input
-                    label="Ville ou Territoire *"
-                    placeholder="Ex: Kikwit, Goma, Limete..."
-                    required
-                    value={city}
-                    onChange={(e) => setCity(e.target.value)}
-                  />
-                </div>
-
-                <Input
-                  label="Mot de passe sécurisé *"
-                  type="password"
-                  required
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  helperText="Au moins 6 caractères recommandés"
                 />
               </div>
 
-              {/* Agreement checkbox */}
-              <div className="pt-2">
-                <label className="flex items-start gap-2.5 cursor-pointer text-xs text-stone-600 leading-relaxed">
+              {/* Localisation RDC */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-stone-700 mb-1.5">
+                    Province d&apos;activité (RDC) *
+                  </label>
+                  <select
+                    value={province}
+                    onChange={(e) => setProvince(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-white border border-stone-300 rounded-xl text-xs font-medium text-stone-800 focus:outline-none focus:ring-2 focus:ring-emerald-700 focus:border-emerald-700"
+                  >
+                    {DRC_PROVINCES.map((prov) => (
+                      <option key={prov} value={prov}>
+                        {prov}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <Input
+                  label="Ville ou Territoire *"
+                  placeholder="ex: Kikwit, Masina, Lubumbashi..."
+                  required
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                />
+              </div>
+
+              {/* Mot de passe */}
+              <Input
+                label="Mot de passe sécurisé *"
+                type="password"
+                placeholder="Au moins 6 caractères"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+
+              {/* Conditions */}
+              <div className="space-y-3 pt-2">
+                <label className="flex items-start gap-2.5 text-xs text-stone-600 cursor-pointer">
                   <input
                     type="checkbox"
-                    required
                     checked={agreeTerms}
                     onChange={(e) => setAgreeTerms(e.target.checked)}
-                    className="mt-0.5 rounded text-emerald-800 focus:ring-emerald-700"
+                    className="mt-0.5 rounded text-emerald-800 focus:ring-emerald-700 cursor-pointer"
+                    required
                   />
                   <span>
-                    J&apos;accepte les conditions d&apos;AgroConnect et je reconnais la règle d&apos;intermédiation stricte (chaque vendeur gère souverainement ses stocks et ses prix en RDC).
+                    J&apos;accepte les{' '}
+                    <Link href="/a-propos" className="text-emerald-800 underline font-bold">
+                      Conditions Générales
+                    </Link>{' '}
+                    d&apos;AgroConnect RDC et reconnais qu&apos;AgroConnect est strictement un intermédiaire
+                    de mise en relation.
                   </span>
                 </label>
               </div>
 
               <Button
                 type="submit"
-                variant="accent"
+                variant="primary"
                 size="lg"
-                className="w-full shadow-md"
-                isLoading={isLoading}
+                className="w-full cursor-pointer"
                 disabled={!agreeTerms}
+                isLoading={isLoading}
               >
                 Créer mon compte AgroConnect
               </Button>
@@ -222,7 +252,7 @@ export default function RegisterPage() {
           )}
 
           <div className="mt-6 pt-6 border-t border-stone-100 text-center text-xs text-stone-500">
-            <span>Vous possédez déjà un compte ? </span>
+            <span>Vous avez déjà un compte ? </span>
             <Link href="/connexion" className="text-emerald-800 hover:text-emerald-900 font-bold">
               Se connecter
             </Link>
@@ -231,7 +261,7 @@ export default function RegisterPage() {
 
         <div className="mt-6 text-center text-xs text-stone-400 flex items-center justify-center gap-2">
           <IconShieldCheck className="w-4 h-4 text-emerald-700" />
-          <span>Plateforme agricole vérifiée • 26 Provinces de la République Démocratique du Congo</span>
+          <span>Plateforme sécurisée • RDC République Démocratique du Congo</span>
         </div>
       </div>
     </div>
