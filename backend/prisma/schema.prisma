@@ -1,0 +1,458 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ----------------------------------------------------
+// ENUMS
+// ----------------------------------------------------
+
+enum UserRole {
+  BUYER
+  SELLER
+  DELIVERY_PROVIDER
+  DELIVERY_PERSON
+  ADMIN
+}
+
+enum SellerType {
+  FARMER    // Agriculteur / Producteur direct
+  RESELLER  // Revendeur indépendant
+  SUPPLIER  // Fournisseur d'intrants et d'équipements
+}
+
+enum VerificationStatus {
+  PENDING
+  UNDER_REVIEW
+  VERIFIED
+  REJECTED
+}
+
+enum Currency {
+  CDF // Franc Congolais
+  USD // Dollar Américain
+}
+
+enum UnitOfMeasure {
+  KG
+  SAC_25KG
+  SAC_50KG
+  SAC_100KG
+  BOTTE
+  TONNE
+  PIECE
+  LITRE
+  BIDON_20L
+  CARTON
+  CASIER
+}
+
+enum SaleType {
+  RETAIL    // Détail
+  WHOLESALE // Gros
+}
+
+enum ParentOrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  PARTIALLY_DELIVERED
+  DELIVERED
+  CANCELLED
+}
+
+enum SubOrderStatus {
+  PENDING
+  CONFIRMED
+  PREPARING
+  READY_FOR_PICKUP
+  IN_DELIVERY
+  DELIVERED
+  REJECTED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+}
+
+enum PaymentProviderType {
+  M_PESA
+  ORANGE_MONEY
+  AIRTEL_MONEY
+  AFRIMONEY
+  BANK_TRANSFER
+  MANUAL_TEST
+}
+
+enum DeliveryStatus {
+  PENDING
+  ASSIGNED
+  PICKED_UP
+  IN_TRANSIT
+  ARRIVED
+  DELIVERED
+  FAILED
+  CANCELLED
+}
+
+enum PayoutStatus {
+  PENDING
+  APPROVED
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+// ----------------------------------------------------
+// MODELS
+// ----------------------------------------------------
+
+model User {
+  id            String    @id @default(uuid())
+  phoneNumber   String    @unique // Numéro congolais (ex: +243...)
+  email         String?   @unique
+  passwordHash  String
+  fullName      String
+  role          UserRole  @default(BUYER)
+  isActive      Boolean   @default(true)
+  preferredLang String    @default("fr")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  sellerProfile    SellerProfile?
+  deliveryProfile  DeliveryProfile?
+  parentOrders     ParentOrder[]    @relation("BuyerOrders")
+  notifications    Notification[]
+
+  @@map("users")
+}
+
+model SellerProfile {
+  id                 String             @id @default(uuid())
+  userId             String             @unique
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sellerType         SellerType
+  businessName       String
+  description        String?
+  province           String             // Province en RDC (ex: Kinshasa, Haut-Katanga, Nord-Kivu)
+  city               String             // Ville ou territoire
+  address            String?
+  verificationStatus VerificationStatus @default(PENDING)
+  commissionRate     Decimal            @default(5.00) // % commission AgroConnect
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  offers             Offer[]
+  subOrders          SubOrder[]
+  sellerServices     SellerService[]
+  payouts            SellerPayout[]
+
+  @@map("seller_profiles")
+}
+
+model DeliveryProfile {
+  id             String             @id @default(uuid())
+  userId         String             @unique
+  user           User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyName    String?
+  vehicleType    String?
+  plateNumber    String?
+  operatingArea  String             // Région d'opération (ex: Kinshasa - Gombe / Limete)
+  isAvailable    Boolean            @default(true)
+  status         VerificationStatus @default(PENDING)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  deliveries     Delivery[]         @relation("PersonnelDeliveries")
+
+  @@map("delivery_profiles")
+}
+
+model Category {
+  id          String    @id @default(uuid())
+  name        String    @unique // ex: Céréales, Tubercules, Maraîchage, Intrants
+  slug        String    @unique
+  description String?
+  imageUrl    String?
+  parentId    String?
+  parent      Category?  @relation("SubCategories", fields: [parentId], references: [id])
+  children    Category[] @relation("SubCategories")
+  products    Product[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("categories")
+}
+
+model Product {
+  id            String        @id @default(uuid())
+  name          String        // Produit commun du catalogue (ex: Manioc Doux, Maïs Jaune)
+  slug          String        @unique
+  description   String?
+  standardUnit  UnitOfMeasure @default(KG)
+  imageUrl      String?
+  categoryId    String
+  category      Category      @relation(fields: [categoryId], references: [id])
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  offers        Offer[]
+
+  @@map("products")
+}
+
+model Offer {
+  id                  String        @id @default(uuid())
+  sellerId            String
+  seller              SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  productId           String
+  product             Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  // Stock unique partagé entre vente au détail et en gros
+  stockQuantity       Decimal       @default(0.00)
+  unit                UnitOfMeasure @default(KG)
+  isAvailable         Boolean       @default(true)
+  
+  // Prix au détail (Retail)
+  retailPriceCdf      Decimal
+  retailPriceUsd      Decimal
+  retailMinQuantity   Decimal       @default(1.00)
+
+  // Prix de gros (Wholesale)
+  wholesalePriceCdf   Decimal?
+  wholesalePriceUsd   Decimal?
+  wholesaleMinQuantity Decimal?
+
+  // Origine géographique spécifique de la récolte
+  harvestDate         DateTime?
+  originProvince      String        // Ex: Kwilu
+  originCity          String?       // Ex: Kikwit
+  qualityGrade        String?       // Ex: Grade 1, Extra, Bio
+
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  orderItems          OrderItem[]
+  services            OfferService[]
+
+  @@map("offers")
+}
+
+model SellerService {
+  id          String         @id @default(uuid())
+  sellerId    String
+  seller      SellerProfile  @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  serviceType String         // ex: LIVRAISON_EXPRESS, CONDITIONNEMENT, CALIBRAGE_TRI, GARANTIE_FRAICHEUR
+  title       String
+  description String?
+  extraFeeCdf Decimal        @default(0.00)
+  extraFeeUsd Decimal        @default(0.00)
+  isActive    Boolean        @default(true)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  offerServices OfferService[]
+
+  @@map("seller_services")
+}
+
+model OfferService {
+  id        String        @id @default(uuid())
+  offerId   String
+  offer     Offer         @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  serviceId String
+  service   SellerService @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@unique([offerId, serviceId])
+  @@map("offer_services")
+}
+
+model ParentOrder {
+  id                   String            @id @default(uuid())
+  orderNumber          String            @unique // ex: AGC-ORD-202611-001
+  buyerId              String
+  buyer                User              @relation("BuyerOrders", fields: [buyerId], references: [id])
+  status               ParentOrderStatus @default(PENDING)
+  
+  // Taux de change historique figé au moment de la création
+  exchangeRateSnapshot Decimal           // Taux 1 USD = X CDF appliqué
+  currency             Currency          @default(CDF)
+  
+  totalItemsCdf        Decimal           @default(0.00)
+  totalItemsUsd        Decimal           @default(0.00)
+  deliveryFeeCdf       Decimal           @default(0.00)
+  deliveryFeeUsd       Decimal           @default(0.00)
+  totalAmountCdf       Decimal           @default(0.00)
+  totalAmountUsd       Decimal           @default(0.00)
+
+  // Adresse de livraison en RDC
+  deliveryProvince     String
+  deliveryCity         String
+  deliveryCommune      String?
+  deliveryAddress      String
+  recipientName        String
+  recipientPhone       String
+  deliveryInstructions String?
+
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+
+  subOrders            SubOrder[]
+  payments             PaymentTransaction[]
+
+  @@map("parent_orders")
+}
+
+model SubOrder {
+  id                   String         @id @default(uuid())
+  subOrderNumber       String         @unique // ex: AGC-SUB-202611-001-A
+  parentOrderId        String
+  parentOrder          ParentOrder    @relation(fields: [parentOrderId], references: [id], onDelete: Cascade)
+  sellerId             String
+  seller               SellerProfile  @relation(fields: [sellerId], references: [id])
+  status               SubOrderStatus @default(PENDING)
+  
+  subtotalCdf          Decimal        @default(0.00)
+  subtotalUsd          Decimal        @default(0.00)
+  commissionRate       Decimal        @default(5.00)
+  commissionAmountCdf  Decimal        @default(0.00)
+  commissionAmountUsd  Decimal        @default(0.00)
+  payoutAmountCdf      Decimal        @default(0.00)
+  payoutAmountUsd      Decimal        @default(0.00)
+  payoutStatus         PayoutStatus   @default(PENDING)
+
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+
+  items                OrderItem[]
+  delivery             Delivery?
+  payouts              SellerPayout[]
+
+  @@map("sub_orders")
+}
+
+model OrderItem {
+  id           String        @id @default(uuid())
+  subOrderId   String
+  subOrder     SubOrder      @relation(fields: [subOrderId], references: [id], onDelete: Cascade)
+  offerId      String
+  offer        Offer         @relation(fields: [offerId], references: [id])
+  saleType     SaleType      @default(RETAIL)
+  quantity     Decimal
+  unitPriceCdf Decimal
+  unitPriceUsd Decimal
+  subtotalCdf  Decimal
+  subtotalUsd  Decimal
+  createdAt    DateTime      @default(now())
+
+  @@map("order_items")
+}
+
+model PaymentTransaction {
+  id                     String              @id @default(uuid())
+  parentOrderId          String
+  parentOrder            ParentOrder         @relation(fields: [parentOrderId], references: [id], onDelete: Cascade)
+  provider               PaymentProviderType
+  providerTransactionId  String?             @unique
+  idempotencyKey         String              @unique
+  amountCdf              Decimal
+  amountUsd              Decimal
+  currency               Currency
+  status                 PaymentStatus       @default(PENDING)
+  verifiedAt             DateTime?
+  rawResponse            String?             // JSON brut pour traçabilité
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+
+  @@map("payment_transactions")
+}
+
+model Delivery {
+  id                  String               @id @default(uuid())
+  subOrderId          String               @unique
+  subOrder            SubOrder             @relation(fields: [subOrderId], references: [id], onDelete: Cascade)
+  personnelId         String?
+  personnel           DeliveryProfile?     @relation("PersonnelDeliveries", fields: [personnelId], references: [id])
+  status              DeliveryStatus       @default(PENDING)
+  trackingCode        String               @unique
+  pickupProvince      String
+  pickupCity          String
+  pickupAddress       String
+  dropoffProvince     String
+  dropoffCity         String
+  dropoffAddress      String
+  estimatedDeliveryAt DateTime?
+  deliveredAt         DateTime?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  statusHistory       DeliveryStatusHistory[]
+
+  @@map("deliveries")
+}
+
+model DeliveryStatusHistory {
+  id          String         @id @default(uuid())
+  deliveryId  String
+  delivery    Delivery       @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  status      DeliveryStatus
+  notes       String?
+  location    String?
+  recordedBy  String?
+  createdAt   DateTime       @default(now())
+
+  @@map("delivery_status_history")
+}
+
+model ExchangeRateConfig {
+  id            String    @id @default(uuid())
+  baseCurrency  Currency  @default(USD)
+  targetCurrency Currency @default(CDF)
+  rate          Decimal   // Ex: 2850.00
+  isActive      Boolean   @default(true)
+  source        String    @default("MANUAL_CONFIG")
+  effectiveFrom DateTime  @default(now())
+  createdAt     DateTime  @default(now())
+
+  @@map("exchange_rate_configs")
+}
+
+model SellerPayout {
+  id           String       @id @default(uuid())
+  sellerId     String
+  seller       SellerProfile @relation(fields: [sellerId], references: [id])
+  subOrderId   String
+  subOrder     SubOrder     @relation(fields: [subOrderId], references: [id])
+  amountCdf    Decimal
+  amountUsd    Decimal
+  status       PayoutStatus @default(PENDING)
+  paidAt       DateTime?
+  reference    String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@map("seller_payouts")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  isRead    Boolean  @default(false)
+  link      String?
+  createdAt DateTime @default(now())
+
+  @@map("notifications")
+}
