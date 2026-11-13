@@ -17,3 +17,4 @@ export interface IStorageProvider {
   deleteFile(fileId: string): Promise<boolean>;
   getPublicUrl(fileId: string): string;
 }
+

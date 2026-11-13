@@ -11,3 +11,4 @@ router.post('/login', validate({ body: loginSchema }), AuthController.login);
 router.get('/me', authenticate, AuthController.me);
 
 export { router as authRoutes };
+

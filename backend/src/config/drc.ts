@@ -86,3 +86,4 @@ export const DRC_MOBILE_MONEY_PROVIDERS = [
 ] as const;
 
 export type MobileMoneyProviderId = typeof DRC_MOBILE_MONEY_PROVIDERS[number]['id'];
+

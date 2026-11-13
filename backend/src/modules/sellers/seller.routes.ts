@@ -7,3 +7,4 @@ router.get('/', SellerController.listSellers);
 router.get('/:id', SellerController.getSellerById);
 
 export { router as sellerRoutes };
+

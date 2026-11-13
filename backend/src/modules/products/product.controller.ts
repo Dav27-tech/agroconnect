@@ -95,3 +95,4 @@ export class ProductController {
     return sendSuccess(res, product);
   }
 }
+

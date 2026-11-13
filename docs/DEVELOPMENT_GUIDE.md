@@ -117,3 +117,4 @@ npx prisma studio
    - Toute entrée de contrôleur Express doit obligatoirement être filtrée et validée par un schéma **Zod** via le middleware `validate()`.
 4. **Frontières Externes :**
    - Ne couplez jamais la logique d'un contrôleur ou service à une bibliothèque tierce propriétaire. Utilisez toujours les interfaces définies dans `backend/src/integrations/`.
+

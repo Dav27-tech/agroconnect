@@ -34,3 +34,4 @@ export interface IPaymentProvider {
   verifyPayment(transactionId: string): Promise<PaymentVerificationResult>;
   refundPayment(transactionId: string, amount: number, reason: string): Promise<{ success: boolean; refundId: string }>;
 }
+

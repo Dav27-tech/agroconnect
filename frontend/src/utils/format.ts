@@ -50,3 +50,4 @@ export function translateSellerType(type: 'FARMER' | 'RESELLER' | 'SUPPLIER'): {
       };
   }
 }
+

@@ -16,3 +16,4 @@ export interface ISmsProvider {
   sendSms(message: SmsMessage): Promise<SmsSendResult>;
   sendOtp(to: string, otpCode: string): Promise<SmsSendResult>;
 }
+

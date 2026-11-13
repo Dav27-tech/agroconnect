@@ -7,3 +7,4 @@ router.post('/checkout', PaymentController.initiateCheckout);
 router.get('/verify/:transactionId', PaymentController.verifyTransaction);
 
 export { router as paymentRoutes };
+

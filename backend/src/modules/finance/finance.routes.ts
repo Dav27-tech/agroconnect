@@ -7,3 +7,4 @@ router.get('/commissions', FinanceController.getCommissionRates);
 router.get('/payouts', FinanceController.listSellerPayouts);
 
 export { router as financeRoutes };
+

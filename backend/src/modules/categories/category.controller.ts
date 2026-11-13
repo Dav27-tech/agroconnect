@@ -66,3 +66,4 @@ export class CategoryController {
     return sendSuccess(res, demoCategories, 'Catégories agricoles récupérées avec succès');
   }
 }
+

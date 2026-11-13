@@ -13,3 +13,4 @@ export interface IExchangeRateProvider {
   getCurrentRate(base: SupportedCurrency, target: SupportedCurrency): Promise<ExchangeRateSnapshot>;
   updateRate(rate: number, source?: 'ADMIN_OVERRIDE'): Promise<ExchangeRateSnapshot>;
 }
+

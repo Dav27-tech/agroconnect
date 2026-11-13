@@ -119,3 +119,4 @@ agroConnect/
 - 🏛️ [Architecture Système & Décisions Techniques](file:///d:/projects/agroConnect/docs/ARCHITECTURE.md)
 - 🔌 [Frontières d'Intégration Externes (Mobile Money, SMS, Maps)](file:///d:/projects/agroConnect/docs/EXTERNAL_INTEGRATIONS.md)
 - 🛠️ [Guide de Développement & Commandes](file:///d:/projects/agroConnect/docs/DEVELOPMENT_GUIDE.md)
+

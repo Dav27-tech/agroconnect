@@ -60,3 +60,4 @@ export function requireRole(allowedRoles: TokenPayload['role'][]) {
     next();
   };
 }
+

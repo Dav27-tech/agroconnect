@@ -103,3 +103,4 @@ Chaque sous-commande génère un bordereau de livraison (`Delivery`) doté d'un 
 | `CANCELLED` | Annulation logistique |
 
 Chaque changement de statut génère une entrée immuable dans `DeliveryStatusHistory` avec horodatage, lieu et notes de transport.
+

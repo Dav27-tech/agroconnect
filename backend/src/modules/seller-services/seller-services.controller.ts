@@ -39,3 +39,4 @@ export class SellerServicesController {
     return sendSuccess(res, standardSellerServices, 'Services vendeurs disponibles sur AgroConnect');
   }
 }
+

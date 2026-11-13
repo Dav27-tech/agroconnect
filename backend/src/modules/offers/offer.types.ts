@@ -29,3 +29,4 @@ export interface SellerOfferItem {
   originProvince: DRCProvince;
   originCity: string;
 }
+

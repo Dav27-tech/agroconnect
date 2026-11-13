@@ -120,3 +120,4 @@ export class AuthController {
     return sendSuccess(res, { user }, 'Profil récupéré avec succès');
   }
 }
+

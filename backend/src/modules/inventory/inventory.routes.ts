@@ -7,3 +7,4 @@ router.get('/:offerId', InventoryController.getOfferInventory);
 router.post('/check', InventoryController.checkAvailability);
 
 export { router as inventoryRoutes };
+

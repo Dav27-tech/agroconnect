@@ -79,3 +79,4 @@ export class SellerController {
     return sendSuccess(res, seller);
   }
 }
+

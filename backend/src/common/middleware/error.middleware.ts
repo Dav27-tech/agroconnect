@@ -24,3 +24,4 @@ export function errorHandler(
 
   sendError(res, message, 500, 'INTERNAL_SERVER_ERROR', env.NODE_ENV === 'development' ? err.stack : undefined);
 }
+

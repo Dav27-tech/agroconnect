@@ -28,6 +28,7 @@ export interface ProductCatalogItem {
   name: string;
   slug: string;
   categoryId: string;
+  categoryName?: string;
   description: string;
   standardUnit: string;
   scientificName?: string;
@@ -64,3 +65,4 @@ export interface ExchangeRateInfo {
   targetCurrency: 'CDF';
   effectiveDate: string;
 }
+

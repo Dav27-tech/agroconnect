@@ -1,11 +1,24 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useCurrency } from '../../context/CurrencyContext';
+import { DRC_PROVINCES } from '../../constants/drc';
 
 export function Hero() {
   const { currency, exchangeRate } = useCurrency();
+  const router = useRouter();
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedProvince, setSelectedProvince] = useState('');
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    const query = new URLSearchParams();
+    if (searchTerm.trim()) query.set('q', searchTerm.trim());
+    if (selectedProvince) query.set('province', selectedProvince);
+    router.push(`/recherche?${query.toString()}`);
+  };
 
   return (
     <section className="relative bg-gradient-to-b from-emerald-50/60 via-stone-50 to-white pt-12 pb-20 border-b border-stone-200">
@@ -32,35 +45,44 @@ export function Hero() {
               <strong className="text-stone-900 font-semibold">Dollars (USD)</strong>.
             </p>
 
-            {/* Quick Search */}
-            <div className="bg-white p-2.5 rounded-2xl shadow-md border border-stone-200 flex flex-col sm:flex-row gap-2 max-w-xl mb-8">
+            {/* Quick Search Form */}
+            <form
+              onSubmit={handleSearch}
+              className="bg-white p-2.5 rounded-2xl shadow-md border border-stone-200 flex flex-col sm:flex-row gap-2 max-w-xl mb-8"
+            >
               <div className="flex-1 flex items-center px-3 gap-2">
                 <span className="text-stone-400">🔍</span>
                 <input
                   type="text"
                   placeholder="Manioc doux, maïs, haricot, semences..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full text-sm text-stone-800 placeholder-stone-400 outline-none bg-transparent"
                 />
               </div>
               <div className="h-8 w-[1px] bg-stone-200 hidden sm:block self-center" />
               <div className="flex items-center px-3 gap-2">
                 <span className="text-stone-400">📍</span>
-                <select className="text-sm text-stone-700 bg-transparent outline-none cursor-pointer">
+                <select
+                  value={selectedProvince}
+                  onChange={(e) => setSelectedProvince(e.target.value)}
+                  className="text-sm text-stone-700 bg-transparent outline-none cursor-pointer"
+                >
                   <option value="">Toutes provinces (26)</option>
-                  <option value="Kinshasa">Kinshasa</option>
-                  <option value="Kwilu">Kwilu (Kikwit)</option>
-                  <option value="Haut-Katanga">Haut-Katanga (Lubumbashi)</option>
-                  <option value="Kongo-Central">Kongo-Central</option>
-                  <option value="Nord-Kivu">Nord-Kivu (Goma)</option>
+                  {DRC_PROVINCES.slice(0, 10).map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
                 </select>
               </div>
               <button
-                type="button"
-                className="bg-emerald-800 hover:bg-emerald-700 text-white font-bold text-sm px-6 py-3 rounded-xl transition"
+                type="submit"
+                className="bg-emerald-800 hover:bg-emerald-700 text-white font-bold text-sm px-6 py-3 rounded-xl transition cursor-pointer"
               >
                 Rechercher
               </button>
-            </div>
+            </form>
 
             {/* Trust Points */}
             <div className="flex flex-wrap items-center gap-6 text-xs text-stone-600 font-medium">
@@ -127,16 +149,16 @@ export function Hero() {
 
               <div className="flex items-center gap-3">
                 <Link
-                  href="#catalogue"
+                  href="/produits/prod-manioc-doux"
                   className="flex-1 text-center bg-orange-600 hover:bg-orange-700 text-white font-bold text-sm py-3 rounded-xl transition shadow-xs"
                 >
                   Commander ce lot
                 </Link>
                 <Link
-                  href="#suivi"
+                  href="/vendeurs/seller-coopak-kikwit"
                   className="px-4 py-3 text-center border border-stone-200 hover:bg-stone-50 text-stone-700 font-bold text-sm rounded-xl transition"
                 >
-                  Suivi Fret
+                  Voir Vendeur
                 </Link>
               </div>
             </div>

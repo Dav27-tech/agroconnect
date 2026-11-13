@@ -117,3 +117,4 @@ graph LR
 ## 3. Règle d'Imperméabilité Métier
 
 La logique métier des modules (`orders`, `payments`, `deliveries`, etc.) dépend **uniquement des interfaces abstraites**. Le remplacement d'un adaptateur de simulation par un adaptateur d'API réelle s'effectuera par simple injection de dépendance sans modifier une seule ligne du code de calcul ou des contrôleurs.
+

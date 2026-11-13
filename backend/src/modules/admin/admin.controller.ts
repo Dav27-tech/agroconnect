@@ -40,3 +40,4 @@ export class AdminController {
     }, 'Statistiques globales de la plateforme AgroConnect');
   }
 }
+

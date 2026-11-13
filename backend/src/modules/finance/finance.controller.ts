@@ -36,3 +36,4 @@ export class FinanceController {
     return sendSuccess(res, payouts, 'Relevé des règlements vendeurs');
   }
 }
+

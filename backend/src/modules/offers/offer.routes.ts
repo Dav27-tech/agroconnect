@@ -7,3 +7,4 @@ router.get('/', OfferController.listOffers);
 router.get('/:id', OfferController.getOfferById);
 
 export { router as offerRoutes };
+

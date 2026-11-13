@@ -6,3 +6,4 @@ const router = Router();
 router.get('/', SellerServicesController.listServices);
 
 export { router as sellerServicesRoutes };
+

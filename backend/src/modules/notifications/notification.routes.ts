@@ -6,3 +6,4 @@ const router = Router();
 router.get('/', NotificationController.listNotifications);
 
 export { router as notificationRoutes };
+

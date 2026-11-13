@@ -53,3 +53,4 @@ export class BusinessRuleError extends AppError {
     super(message, 422, 'BUSINESS_RULE_VIOLATION', details);
   }
 }
+

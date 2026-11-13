@@ -6,3 +6,4 @@ const router = Router();
 router.post('/calculate', CartController.calculateCart);
 
 export { router as cartRoutes };
+

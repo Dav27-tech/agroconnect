@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useCurrency } from '../../context/CurrencyContext';
+import { IconSearch, IconUser } from '../ui/Icons';
 
 export function Navbar() {
   const { currency, toggleCurrency, exchangeRate } = useCurrency();
@@ -15,7 +16,9 @@ export function Navbar() {
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-2">
           <div className="flex items-center gap-2">
             <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span>Place de marché agricole dédiée exclusivement à la <strong>République Démocratique du Congo</strong></span>
+            <span>
+              Place de marché agricole dédiée exclusivement à la <strong>République Démocratique du Congo</strong>
+            </span>
           </div>
           <div className="flex items-center gap-4">
             <span className="text-emerald-200">
@@ -48,57 +51,68 @@ export function Navbar() {
           </Link>
 
           {/* Navigation Links Desktop */}
-          <nav className="hidden lg:flex items-center gap-8 text-sm font-semibold text-stone-700">
-            <Link href="#catalogue" className="hover:text-emerald-800 transition">
+          <nav className="hidden lg:flex items-center gap-7 text-sm font-semibold text-stone-700">
+            <Link href="/catalogue" className="hover:text-emerald-800 transition">
               Catalogue Produits
             </Link>
-            <Link href="#vendeurs" className="hover:text-emerald-800 transition">
-              Producteurs & Revendeurs
+            <Link href="/#vendeurs" className="hover:text-emerald-800 transition">
+              Acteurs du Marché
             </Link>
-            <Link href="#intrants" className="hover:text-emerald-800 transition">
-              Intrants & Matériel
+            <Link href="/a-propos" className="hover:text-emerald-800 transition">
+              À Propos
             </Link>
-            <Link href="#suivi" className="hover:text-emerald-800 transition">
-              Suivi Livraison
+            <Link href="/contact" className="hover:text-emerald-800 transition">
+              Contact & Support
+            </Link>
+            <Link href="/recherche" className="hover:text-emerald-800 transition flex items-center gap-1">
+              <IconSearch className="w-4 h-4 text-stone-500" />
+              <span>Recherche</span>
             </Link>
           </nav>
 
-          {/* Right Tools (Currency Toggle & Auth CTA) */}
-          <div className="hidden sm:flex items-center gap-4">
+          {/* Right Tools (Currency Toggle & Auth CTAs) */}
+          <div className="hidden sm:flex items-center gap-3">
             {/* Currency Switcher */}
             <div className="flex items-center bg-stone-100 p-1 rounded-lg border border-stone-200">
               <button
                 type="button"
                 onClick={toggleCurrency}
-                className={`px-2.5 py-1 text-xs font-bold rounded-md transition ${
-                  currency === 'CDF'
+                className={`px-2.5 py-1 text-xs font-bold rounded-md transition cursor-pointer ${currency === 'CDF'
                     ? 'bg-emerald-800 text-white shadow-xs'
                     : 'text-stone-600 hover:text-stone-900'
-                }`}
-                title="Afficher les prix en Francs Congolais"
+                  }`}
+                title="Afficher les prix en Francs Congolais (FC)"
               >
                 CDF (FC)
               </button>
               <button
                 type="button"
                 onClick={toggleCurrency}
-                className={`px-2.5 py-1 text-xs font-bold rounded-md transition ${
-                  currency === 'USD'
+                className={`px-2.5 py-1 text-xs font-bold rounded-md transition cursor-pointer ${currency === 'USD'
                     ? 'bg-emerald-800 text-white shadow-xs'
                     : 'text-stone-600 hover:text-stone-900'
-                }`}
-                title="Afficher les prix en Dollars Américains"
+                  }`}
+                title="Afficher les prix en Dollars Américains ($)"
               >
                 USD ($)
               </button>
             </div>
 
+            {/* Login Link */}
+            <Link
+              href="/connexion"
+              className="text-xs font-bold text-stone-700 hover:text-emerald-800 px-3 py-2 rounded-lg border border-stone-200 hover:bg-stone-50 transition flex items-center gap-1.5"
+            >
+              <IconUser className="w-4 h-4 text-stone-500" />
+              <span>Connexion</span>
+            </Link>
+
             {/* CTA Vendeur */}
             <Link
-              href="#rejoindre"
+              href="/inscription"
               className="bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold px-4 py-2.5 rounded-lg shadow-xs transition"
             >
-              Vendre ma production
+              Vendre en RDC
             </Link>
           </div>
 
@@ -118,20 +132,23 @@ export function Navbar() {
         {/* Mobile Dropdown */}
         {mobileMenuOpen && (
           <div className="lg:hidden py-4 border-t border-stone-200 flex flex-col gap-3">
-            <Link href="#catalogue" className="text-sm font-semibold py-2 text-stone-700" onClick={() => setMobileMenuOpen(false)}>
+            <Link href="/catalogue" className="text-sm font-semibold py-2 text-stone-700" onClick={() => setMobileMenuOpen(false)}>
               Catalogue Produits
             </Link>
-            <Link href="#vendeurs" className="text-sm font-semibold py-2 text-stone-700" onClick={() => setMobileMenuOpen(false)}>
-              Producteurs & Revendeurs
+            <Link href="/#vendeurs" className="text-sm font-semibold py-2 text-stone-700" onClick={() => setMobileMenuOpen(false)}>
+              Acteurs du Marché
             </Link>
-            <Link href="#intrants" className="text-sm font-semibold py-2 text-stone-700" onClick={() => setMobileMenuOpen(false)}>
-              Intrants & Matériel
+            <Link href="/a-propos" className="text-sm font-semibold py-2 text-stone-700" onClick={() => setMobileMenuOpen(false)}>
+              À Propos
             </Link>
-            <Link href="#suivi" className="text-sm font-semibold py-2 text-stone-700" onClick={() => setMobileMenuOpen(false)}>
-              Suivi Livraison
+            <Link href="/contact" className="text-sm font-semibold py-2 text-stone-700" onClick={() => setMobileMenuOpen(false)}>
+              Contact & Support
             </Link>
-            <div className="pt-2 flex items-center justify-between">
-              <span className="text-xs text-stone-600">Devise d&apos;affichage :</span>
+            <Link href="/recherche" className="text-sm font-semibold py-2 text-stone-700" onClick={() => setMobileMenuOpen(false)}>
+              Rechercher un produit
+            </Link>
+            <div className="pt-3 border-t border-stone-100 flex items-center justify-between">
+              <span className="text-xs text-stone-600">Devise :</span>
               <button
                 type="button"
                 onClick={toggleCurrency}
@@ -139,6 +156,14 @@ export function Navbar() {
               >
                 Passer en {currency === 'CDF' ? 'USD ($)' : 'CDF (FC)'}
               </button>
+            </div>
+            <div className="pt-2 flex gap-2">
+              <Link href="/connexion" className="flex-1 text-center py-2 text-xs font-bold bg-stone-100 text-stone-800 rounded-lg">
+                Connexion
+              </Link>
+              <Link href="/inscription" className="flex-1 text-center py-2 text-xs font-bold bg-orange-600 text-white rounded-lg">
+                S&apos;inscrire
+              </Link>
             </div>
           </div>
         )}

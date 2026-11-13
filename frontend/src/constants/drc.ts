@@ -35,3 +35,4 @@ export const PAYMENT_METHODS = [
   { id: 'AIRTEL_MONEY', name: 'Airtel Money', badge: 'Airtel Money' },
   { id: 'AFRIMONEY', name: 'Afrimoney', badge: 'Afrimoney' },
 ] as const;
+

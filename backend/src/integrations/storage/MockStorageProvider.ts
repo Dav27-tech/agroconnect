@@ -25,3 +25,4 @@ export class MockStorageProvider implements IStorageProvider {
 }
 
 export const defaultStorageProvider = new MockStorageProvider();
+

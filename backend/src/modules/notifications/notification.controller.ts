@@ -27,3 +27,4 @@ export class NotificationController {
     return sendSuccess(res, userNotifs, 'Notifications récupérées avec succès');
   }
 }
+

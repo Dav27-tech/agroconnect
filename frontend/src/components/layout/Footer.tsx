@@ -9,53 +9,51 @@ export function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-10 pb-12 border-b border-stone-800">
           {/* Brand Col */}
           <div className="lg:col-span-2">
-            <div className="flex items-center gap-3 mb-4">
+            <Link href="/" className="flex items-center gap-3 mb-4 inline-flex">
               <div className="w-10 h-10 rounded-lg bg-emerald-700 text-white flex items-center justify-center font-bold text-xl">
                 🌾
               </div>
               <span className="text-2xl font-black text-white">
                 Agro<span className="text-orange-500">Connect</span> RDC
               </span>
-            </div>
-            <p className="text-sm text-stone-400 mb-6 leading-relaxed max-w-sm">
+            </Link>
+            <p className="text-sm text-stone-400 mb-6 leading-relaxed max-w-sm font-normal">
               La première place de marché agricole numérique opérant exclusivement en République Démocratique du Congo.
               AgroConnect connecte directement les producteurs, revendeurs agréés et fournisseurs d&apos;intrants aux acheteurs finaux.
             </p>
-            <div className="bg-stone-800/80 p-3.5 rounded-lg border border-stone-700 text-xs text-stone-300 leading-relaxed">
-              <strong className="text-emerald-400">Règle d&apos;or du modèle d&apos;affaires :</strong> AgroConnect est strictement un intermédiaire de confiance. La plateforme n&apos;achète, ne possède, ne stocke ni ne revend aucun produit. Chaque vendeur gère ses stocks et ses prix.
+            <div className="bg-stone-800/80 p-3.5 rounded-xl border border-stone-700 text-xs text-stone-300 leading-relaxed">
+              <strong className="text-emerald-400 font-bold">Règle d&apos;or d&apos;intermédiation :</strong> AgroConnect n&apos;achète, ne possède, ne stocke ni ne revend aucun produit agricole. Chaque vendeur gère ses stocks et ses prix.
             </div>
           </div>
 
-          {/* Secteurs Col */}
+          {/* Navigation Rapide */}
           <div>
-            <h4 className="text-sm font-bold text-white uppercase tracking-wider mb-4">Acteurs du Marché</h4>
+            <h4 className="text-sm font-bold text-white uppercase tracking-wider mb-4">Navigation</h4>
             <ul className="space-y-2.5 text-sm text-stone-400">
-              <li><Link href="#producteurs" className="hover:text-emerald-400 transition">Agriculteurs & Coopératives</Link></li>
-              <li><Link href="#revendeurs" className="hover:text-emerald-400 transition">Revendeurs & Grossistes</Link></li>
-              <li><Link href="#intrants" className="hover:text-emerald-400 transition">Fournisseurs d&apos;Intrants</Link></li>
-              <li><Link href="#acheteurs" className="hover:text-emerald-400 transition">Acheteurs Professionnels (B2B)</Link></li>
-              <li><Link href="#transporteurs" className="hover:text-emerald-400 transition">Partenaires Transport & Fret</Link></li>
+              <li><Link href="/catalogue" className="hover:text-emerald-400 transition">Catalogue des Produits</Link></li>
+              <li><Link href="/#vendeurs" className="hover:text-emerald-400 transition">Acteurs du Marché</Link></li>
+              <li><Link href="/a-propos" className="hover:text-emerald-400 transition">À Propos d&apos;AgroConnect</Link></li>
+              <li><Link href="/contact" className="hover:text-emerald-400 transition">Contact & Bureaux RDC</Link></li>
+              <li><Link href="/recherche" className="hover:text-emerald-400 transition">Moteur de Recherche</Link></li>
             </ul>
           </div>
 
-          {/* Villes et Provinces Col */}
+          {/* Espace Utilisateur */}
           <div>
-            <h4 className="text-sm font-bold text-white uppercase tracking-wider mb-4">Couverture Opérationnelle</h4>
+            <h4 className="text-sm font-bold text-white uppercase tracking-wider mb-4">Espace Professionnel</h4>
             <ul className="space-y-2.5 text-sm text-stone-400">
-              <li>Kinshasa & Bandundu</li>
-              <li>Kongo-Central (Matadi / Boma)</li>
-              <li>Grand Katanga (Lubumbashi / Kolwezi)</li>
-              <li>Grand Kivu (Goma / Bukavu)</li>
-              <li>Grand Kasaï (Kananga / Mbuji-Mayi)</li>
-              <li>Tshopo (Kisangani)</li>
+              <li><Link href="/inscription" className="hover:text-emerald-400 transition">Devenir Vendeur Agréé</Link></li>
+              <li><Link href="/connexion" className="hover:text-emerald-400 transition">Connexion Mon Compte</Link></li>
+              <li><Link href="/inscription" className="hover:text-emerald-400 transition">Transporteurs & Fret</Link></li>
+              <li><Link href="/contact" className="hover:text-emerald-400 transition">Demande d&apos;achat en Gros B2B</Link></li>
             </ul>
           </div>
 
           {/* Paiements Col */}
           <div>
             <h4 className="text-sm font-bold text-white uppercase tracking-wider mb-4">Paiements RDC</h4>
-            <p className="text-xs text-stone-400 mb-3">Règlement sécurisé en Francs Congolais (CDF) et Dollars (USD) :</p>
-            <div className="flex flex-wrap gap-2 mb-6">
+            <p className="text-xs text-stone-400 mb-3">Règlement certifié en Francs Congolais (CDF) et Dollars (USD) :</p>
+            <div className="flex flex-wrap gap-1.5 mb-5">
               {PAYMENT_METHODS.map((pm) => (
                 <span
                   key={pm.id}
@@ -65,19 +63,19 @@ export function Footer() {
                 </span>
               ))}
             </div>
-            <p className="text-[11px] text-stone-400">
-              Taux de transaction garanti et figé au passage de la commande.
+            <p className="text-[11px] text-stone-500">
+              Taux de transaction garanti et figé au passage de chaque commande.
             </p>
           </div>
         </div>
 
         {/* Bottom bar */}
-        <div className="pt-8 flex flex-col sm:flex-row justify-between items-center text-xs text-stone-400 gap-4">
+        <div className="pt-8 flex flex-col sm:flex-row justify-between items-center text-xs text-stone-500 gap-4">
           <p>© 2026 AgroConnect RDC. Tous droits réservés.</p>
           <div className="flex items-center gap-6">
-            <span>République Démocratique du Congo</span>
-            <span>Support : contact@agroconnect.cd</span>
-            <span>FR (Français)</span>
+            <span>26 Provinces de la RDC</span>
+            <Link href="/contact" className="hover:text-stone-300 transition">contact@agroconnect.cd</Link>
+            <span>Français (FR)</span>
           </div>
         </div>
       </div>

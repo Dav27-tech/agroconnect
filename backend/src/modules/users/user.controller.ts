@@ -26,3 +26,4 @@ export class UserController {
     }, 'Préférences mises à jour');
   }
 }
+

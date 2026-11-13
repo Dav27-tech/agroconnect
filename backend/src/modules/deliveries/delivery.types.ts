@@ -41,3 +41,4 @@ export interface DeliveryRecord {
   createdAt: Date;
   updatedAt: Date;
 }
+

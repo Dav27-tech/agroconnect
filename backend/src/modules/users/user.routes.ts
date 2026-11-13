@@ -9,3 +9,4 @@ router.get('/profile', UserController.getProfile);
 router.patch('/preferences', UserController.updatePreferences);
 
 export { router as userRoutes };
+

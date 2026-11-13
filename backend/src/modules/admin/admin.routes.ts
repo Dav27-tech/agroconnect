@@ -8,3 +8,4 @@ router.post('/exchange-rate', AdminController.updateExchangeRate);
 router.get('/stats', AdminController.getPlatformStats);
 
 export { router as adminRoutes };
+

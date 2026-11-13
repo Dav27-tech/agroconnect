@@ -6,3 +6,4 @@ const router = Router();
 router.get('/', CategoryController.listCategories);
 
 export { router as categoryRoutes };
+

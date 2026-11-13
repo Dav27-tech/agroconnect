@@ -14,3 +14,4 @@ export interface SellerProfileData {
   rating: number;
   totalSales: number;
 }
+

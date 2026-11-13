@@ -14,3 +14,4 @@ export interface IMapsProvider {
   calculateDistance(origin: string, destination: string): Promise<RouteEstimate>;
   geocode(address: string, province: string): Promise<GeoCoordinates | null>;
 }
+

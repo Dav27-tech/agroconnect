@@ -61,3 +61,4 @@ export class ConfigExchangeRateProvider implements IExchangeRateProvider {
 }
 
 export const exchangeRateService = new ConfigExchangeRateProvider();
+

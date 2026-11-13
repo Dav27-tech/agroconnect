@@ -64,3 +64,4 @@ export class MockPaymentProvider implements IPaymentProvider {
 }
 
 export const defaultPaymentProvider = new MockPaymentProvider();
+

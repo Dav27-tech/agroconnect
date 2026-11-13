@@ -106,3 +106,4 @@ L'application frontend tire parti de Next.js (App Router) pour combiner rendu se
 - **Hachage cryptographique :** Algorithme `scrypt` avec sel cryptographique de 16 octets et dérivation en 64 octets.
 - **Comparaison en temps constant :** `crypto.timingSafeEqual` prévenant les attaques temporelles par canal auxiliaire.
 - **Limitation de débit (Rate Limiting) :** Fenêtre glissante par IP protégeant les points de terminaison sensibles.
+

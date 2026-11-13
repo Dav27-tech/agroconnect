@@ -16,3 +16,4 @@ export interface IEmailProvider {
   readonly providerName: string;
   sendEmail(message: EmailMessage): Promise<EmailSendResult>;
 }
+

@@ -7,3 +7,4 @@ router.get('/', ProductController.listProducts);
 router.get('/:id', ProductController.getProductById);
 
 export { router as productRoutes };
+

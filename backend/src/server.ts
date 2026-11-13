@@ -37,3 +37,4 @@ bootstrap().catch((error) => {
   console.error('❌ Échec critique lors du démarrage du serveur :', error);
   process.exit(1);
 });
+

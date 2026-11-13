@@ -16,3 +16,4 @@ export class MockEmailProvider implements IEmailProvider {
 }
 
 export const defaultEmailProvider = new MockEmailProvider();
+
