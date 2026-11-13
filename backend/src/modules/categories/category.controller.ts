@@ -1,69 +1,42 @@
 import { Request, Response } from 'express';
-import { sendSuccess } from '../../common/response.js';
-
-export interface CategoryData {
-  id: string;
-  name: string;
-  slug: string;
-  description: string;
-  icon: string;
-  itemCount: number;
-}
-
-export const demoCategories: CategoryData[] = [
-  {
-    id: 'cat-tubercules',
-    name: 'Tubercules & Racines',
-    slug: 'tubercules-racines',
-    description: 'Manioc, cossettes de manioc, patates douces, ignames et taro congolais.',
-    icon: '🍠',
-    itemCount: 48,
-  },
-  {
-    id: 'cat-cereales',
-    name: 'Céréales & Grains',
-    slug: 'cereales-grains',
-    description: 'Maïs jaune, maïs blanc, riz local de Bumba, sorgho et millet.',
-    icon: '🌽',
-    itemCount: 62,
-  },
-  {
-    id: 'cat-maraichage',
-    name: 'Légumes & Maraîchage',
-    slug: 'legumes-maraichage',
-    description: 'Feuilles de manioc (Pondu), matembele, bitekuteku, tomates, piments et oignons.',
-    icon: '🥬',
-    itemCount: 95,
-  },
-  {
-    id: 'cat-legumineuses',
-    name: 'Légumineuses & Oléagineux',
-    slug: 'legumineuses-oleagineux',
-    description: 'Haricots du Kivu, arachides, graines de courge, soja et sésame.',
-    icon: '🥜',
-    itemCount: 39,
-  },
-  {
-    id: 'cat-fruits',
-    name: 'Fruits Tropicaux',
-    slug: 'fruits-tropicaux',
-    description: 'Bananes plantains, papayes, mangues, ananas et avocats de production locale.',
-    icon: '🍌',
-    itemCount: 54,
-  },
-  {
-    id: 'cat-intrants',
-    name: 'Intrants & Équipements',
-    slug: 'intrants-equipements',
-    description: 'Semences certifiées, fertilisants, motopompes, houes, machettes et outillage.',
-    icon: '🚜',
-    itemCount: 31,
-  },
-];
+import { sendSuccess, sendError } from '../../common/response.js';
+import { AgroStore } from '../../database/store.js';
 
 export class CategoryController {
   public static async listCategories(_req: Request, res: Response): Promise<Response> {
-    return sendSuccess(res, demoCategories, 'Catégories agricoles récupérées avec succès');
+    const categories = Array.from(AgroStore.categories.values()).map((cat) => {
+      // Calculer le nombre de produits et d'offres réelles
+      const catProducts = Array.from(AgroStore.products.values()).filter((p) => p.categoryId === cat.id);
+      const productIds = new Set(catProducts.map((p) => p.id));
+      const activeOffers = Array.from(AgroStore.offers.values()).filter(
+        (o) => productIds.has(o.productId) && o.isAvailable
+      );
+
+      return {
+        ...cat,
+        productsCount: catProducts.length,
+        offersCount: activeOffers.length,
+        itemCount: catProducts.length + activeOffers.length,
+      };
+    });
+
+    return sendSuccess(res, categories, 'Liste des catégories agricoles récupérée avec succès');
+  }
+
+  public static async getCategoryBySlug(req: Request, res: Response): Promise<Response> {
+    const rawSlug = req.params.slug;
+    const slug = (Array.isArray(rawSlug) ? rawSlug[0] : rawSlug) || '';
+    const category = Array.from(AgroStore.categories.values()).find((c) => c.slug === slug || c.id === slug);
+
+    if (!category) {
+      return sendError(res, `Catégorie agricole '${slug}' introuvable`, 404, 'CATEGORY_NOT_FOUND');
+    }
+
+    const catProducts = Array.from(AgroStore.products.values()).filter((p) => p.categoryId === category.id);
+
+    return sendSuccess(res, {
+      ...category,
+      products: catProducts,
+    });
   }
 }
-

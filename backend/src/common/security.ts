@@ -1,10 +1,14 @@
 import crypto from 'node:crypto';
 import { env } from '../config/env.js';
 
+export type UserRoleType = 'BUYER' | 'SELLER' | 'DELIVERY_PROVIDER' | 'DELIVERY_PERSON' | 'ADMIN';
+
 export interface TokenPayload {
   userId: string;
   phoneNumber: string;
-  role: 'BUYER' | 'SELLER' | 'DELIVERY_PROVIDER' | 'DELIVERY_PERSON' | 'ADMIN';
+  roles: UserRoleType[];
+  role?: UserRoleType; // Rôle principal pour compatibilité descendante
+  sellerId?: string;   // ID du profil vendeur si applicable
   exp: number; // Timestamp d'expiration en secondes
   iat: number; // Timestamp d'émission en secondes
 }
@@ -45,22 +49,28 @@ export class Security {
   }
 
   /**
-   * Génère un jeton d'authentification HMAC-SHA256 sécurisé
+   * Génère un jeton d'authentification HMAC-SHA256 sécurisé (support multi-rôles)
    */
   public static generateToken(
     userId: string,
     phoneNumber: string,
-    role: TokenPayload['role'],
+    rolesOrRole: UserRoleType[] | UserRoleType,
+    sellerId?: string,
     expiresInDays = 7
   ): string {
     const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
     const now = Math.floor(Date.now() / 1000);
     const exp = now + expiresInDays * 24 * 60 * 60;
 
+    const roles: UserRoleType[] = Array.isArray(rolesOrRole) ? rolesOrRole : [rolesOrRole];
+    const primaryRole = roles[0] || 'BUYER';
+
     const payload: TokenPayload = {
       userId,
       phoneNumber,
-      role,
+      roles,
+      role: primaryRole,
+      sellerId,
       iat: now,
       exp,
     };

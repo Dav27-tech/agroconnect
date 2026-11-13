@@ -4,7 +4,7 @@ import { ProductController } from './product.controller.js';
 const router = Router();
 
 router.get('/', ProductController.listProducts);
-router.get('/:id', ProductController.getProductById);
+router.get('/:slug', ProductController.getProductBySlug);
 
 export { router as productRoutes };
 

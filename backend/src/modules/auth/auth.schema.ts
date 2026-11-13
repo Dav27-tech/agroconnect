@@ -9,7 +9,8 @@ export const registerSchema = z.object({
   fullName: z.string().min(2, 'Le nom complet doit comporter au moins 2 caractères'),
   password: z.string().min(6, 'Le mot de passe doit comporter au moins 6 caractères'),
   email: z.string().email('Adresse email invalide').optional(),
-  role: z.enum(['BUYER', 'SELLER', 'DELIVERY_PROVIDER', 'DELIVERY_PERSON']).default('BUYER'),
+  role: z.enum(['BUYER', 'SELLER', 'DELIVERY_PROVIDER', 'DELIVERY_PERSON', 'ADMIN']).optional(),
+  roles: z.array(z.enum(['BUYER', 'SELLER', 'DELIVERY_PROVIDER', 'DELIVERY_PERSON', 'ADMIN'])).optional(),
 });
 
 export const loginSchema = z.object({
@@ -19,4 +20,3 @@ export const loginSchema = z.object({
 
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
-

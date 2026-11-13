@@ -126,3 +126,55 @@ export function IconBuilding({ className = 'w-5 h-5', ...props }: IconProps) {
   );
 }
 
+export function IconPlant({ className = 'w-5 h-5', ...props }: IconProps) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 21v-9m0 4c-4.2 0-7-2.7-7-7 4.3 0 7 2.7 7 7Zm0-3c0-4.3 2.7-7 7-7 0 4.3-2.7 7-7 7Zm-5 9h10" />
+    </svg>
+  );
+}
+
+export function IconWheat({ className = 'w-5 h-5', ...props }: IconProps) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 22V5m0 7c-3.1 0-5-1.8-5-4.5 3.1 0 5 1.8 5 4.5Zm0-4c0-2.7 1.9-4.5 5-4.5 0 2.7-1.9 4.5-5 4.5Zm0 10c-2.5 0-4-1.4-4-3.5 2.5 0 4 1.4 4 3.5Zm0-3c0-2.1 1.5-3.5 4-3.5 0 2.1-1.5 3.5-4 3.5Z" />
+    </svg>
+  );
+}
+
+export function IconLeaf({ className = 'w-5 h-5', ...props }: IconProps) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M20 4c-9.5 0-15 4.5-15 11a5 5 0 005 5c6.5 0 11-5.5 10-16Zm-14 14 9-9" />
+    </svg>
+  );
+}
+
+export function IconBasket({ className = 'w-5 h-5', ...props }: IconProps) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="m4 10 2 10h12l2-10H4Zm-1 0h18m-12 0 2 10m4-10-2 10M8 7l4-4m4 4-4-4" />
+    </svg>
+  );
+}
+
+export function IconTools({ className = 'w-5 h-5', ...props }: IconProps) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="m14.7 6.3 3-3a5 5 0 01-6.4 6.4l-7.5 7.5a2.1 2.1 0 003 3l7.5-7.5a5 5 0 006.4-6.4l-3 3-3-3Z" />
+    </svg>
+  );
+}
+
+export function IconCategory({ name, className = 'w-6 h-6', ...props }: IconProps & { name: string }) {
+  const icons: Record<string, React.ComponentType<IconProps>> = {
+    tubercules: IconPlant,
+    cereals: IconWheat,
+    vegetables: IconLeaf,
+    legumes: IconBasket,
+    fruits: IconBasket,
+    supplies: IconTools,
+  };
+  const CategoryGlyph = icons[name] || IconPlant;
+  return <CategoryGlyph className={className} aria-hidden="true" {...props} />;
+}

@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { sendSuccess, sendError } from '../../common/response.js';
-import { storedOrders } from '../orders/order.controller.js';
+import { AgroStore, PaymentRecord } from '../../database/store.js';
 import { defaultPaymentProvider } from '../../integrations/payment/MockPaymentProvider.js';
 import { MobileMoneyProviderId } from '../../config/drc.js';
 import crypto from 'node:crypto';
@@ -15,7 +15,7 @@ export class PaymentController {
   public static async initiateCheckout(req: Request<unknown, unknown, CheckoutInput>, res: Response): Promise<Response> {
     const { parentOrderId, provider, customerPhoneNumber } = req.body;
 
-    const order = storedOrders.get(parentOrderId);
+    const order = AgroStore.parentOrders.get(parentOrderId);
     if (!order) {
       return sendError(res, `Commande parent '${parentOrderId}' introuvable`, 404, 'ORDER_NOT_FOUND');
     }
@@ -27,7 +27,7 @@ export class PaymentController {
     const amount = order.currency === 'CDF' ? order.totalAmountCdf : order.totalAmountUsd;
     const idempotencyKey = `PAY-${parentOrderId}-${crypto.randomUUID().slice(0, 6)}`;
 
-    // Appel à l'adaptateur de paiement (Mock)
+    // Appel à l'adaptateur de paiement
     const result = await defaultPaymentProvider.initiatePayment({
       parentOrderId,
       orderNumber: order.orderNumber,
@@ -38,12 +38,35 @@ export class PaymentController {
       idempotencyKey,
     });
 
+    // Enregistrement de la transaction de paiement dans le store
+    const paymentRecord: PaymentRecord = {
+      id: result.transactionId,
+      parentOrderId,
+      provider,
+      providerTransactionId: result.providerReference,
+      idempotencyKey,
+      amountCdf: order.totalAmountCdf,
+      amountUsd: order.totalAmountUsd,
+      currency: order.currency,
+      status: result.status,
+      verifiedAt: result.status === 'SUCCEEDED' ? new Date() : undefined,
+      rawResponse: JSON.stringify(result),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    AgroStore.payments.set(paymentRecord.id, paymentRecord);
+
     // Mise à jour de la commande sur vérification backend
     if (result.status === 'SUCCEEDED') {
       order.status = 'CONFIRMED';
-      order.subOrders.forEach((so) => {
-        so.status = 'CONFIRMED';
-      });
+      order.updatedAt = new Date();
+
+      Array.from(AgroStore.subOrders.values())
+        .filter((so) => so.parentOrderId === order.id)
+        .forEach((so) => {
+          so.status = 'CONFIRMED';
+          so.updatedAt = new Date();
+        });
     }
 
     return sendSuccess(
@@ -58,17 +81,19 @@ export class PaymentController {
         verificationStatus: 'VERIFIED_ON_BACKEND',
         instructions: result.instructions,
       },
-      'Paiement initié et vérifié par le backend'
+      'Paiement initié et vérifié par le backend AgroConnect'
     );
   }
 
-  public static async verifyTransaction(req: Request, res: Response): Promise<Response> {
-    const rawTxId = req.params.transactionId;
-    const transactionId = (Array.isArray(rawTxId) ? rawTxId[0] : rawTxId) || '';
+  public static async verifyPayment(req: Request, res: Response): Promise<Response> {
+    const rawId = req.params.transactionId;
+    const transactionId = (Array.isArray(rawId) ? rawId[0] : rawId) || '';
 
-    // Règle critique : la vérification s'opère STRICTEMENT côté backend
-    const verification = await defaultPaymentProvider.verifyPayment(transactionId);
+    const payment = AgroStore.payments.get(transactionId);
+    if (!payment) {
+      return sendError(res, `Transaction '${transactionId}' introuvable`, 404, 'PAYMENT_NOT_FOUND');
+    }
 
-    return sendSuccess(res, verification, 'Statut de paiement certifié par le serveur');
+    return sendSuccess(res, payment, 'Statut de paiement vérifié');
   }
 }

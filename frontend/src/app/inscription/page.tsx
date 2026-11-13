@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { DRC_PROVINCES } from '../../constants/drc';
-import { IconShieldCheck, IconPhone, IconLocation } from '../../components/ui/Icons';
+import { IconCart, IconCheck, IconPlant, IconShieldCheck, IconPhone, IconTruck } from '../../components/ui/Icons';
 import { UserRole } from '../../types';
 
 export default function RegisterPage() {
@@ -19,24 +19,24 @@ export default function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [registered, setRegistered] = useState(false);
 
-  const roleOptions: Array<{ role: UserRole; title: string; desc: string; icon: string }> = [
+  const roleOptions: Array<{ role: UserRole; title: string; desc: string; icon: React.ReactNode }> = [
     {
       role: 'BUYER',
       title: 'Acheteur (Particulier ou Pro)',
       desc: 'Commander des récoltes et intrants au détail ou en gros.',
-      icon: '🛒',
+      icon: <IconCart className="w-6 h-6" aria-hidden="true" />,
     },
     {
       role: 'SELLER',
       title: 'Agriculteur / Producteur',
       desc: 'Vendre mes récoltes directes aux meilleurs prix sans intermédiaire.',
-      icon: '🌱',
+      icon: <IconPlant className="w-6 h-6" aria-hidden="true" />,
     },
     {
       role: 'DELIVERY_PROVIDER',
       title: 'Transporteur & Logistique',
       desc: 'Prendre en charge l\'acheminement et le fret urbain ou inter-provinces.',
-      icon: '🚚',
+      icon: <IconTruck className="w-6 h-6" aria-hidden="true" />,
     },
   ];
 
@@ -55,8 +55,8 @@ export default function RegisterPage() {
     <div className="min-h-screen bg-stone-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-xl mx-auto">
         <Link href="/" className="flex items-center justify-center gap-2 mb-6">
-          <div className="w-11 h-11 rounded-2xl bg-emerald-800 text-white flex items-center justify-center text-2xl font-bold shadow-sm">
-            🌾
+          <div className="w-11 h-11 rounded-2xl bg-emerald-800 text-white flex items-center justify-center shadow-sm">
+            <IconPlant className="w-6 h-6" aria-hidden="true" />
           </div>
           <span className="text-2xl font-black text-stone-900">
             Agro<span className="text-orange-600">Connect</span>
@@ -75,7 +75,9 @@ export default function RegisterPage() {
         <div className="bg-white py-8 px-6 sm:px-10 rounded-3xl border border-stone-200 shadow-xl">
           {registered ? (
             <div className="p-8 text-center bg-emerald-50 rounded-2xl border border-emerald-200 space-y-4">
-              <span className="text-5xl">🎉</span>
+              <span className="w-14 h-14 mx-auto rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center">
+                <IconCheck className="w-8 h-8" aria-hidden="true" />
+              </span>
               <h2 className="text-xl font-black text-emerald-950">
                 Compte Créé avec Succès !
               </h2>
@@ -104,16 +106,18 @@ export default function RegisterPage() {
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   {roleOptions.map((opt) => (
-                    <div
+                    <button
+                      type="button"
                       key={opt.role}
                       onClick={() => setSelectedRole(opt.role)}
-                      className={`p-3.5 rounded-2xl border cursor-pointer transition flex flex-col justify-between ${selectedRole === opt.role
+                      aria-pressed={selectedRole === opt.role}
+                      className={`w-full text-left p-3.5 rounded-2xl border cursor-pointer transition flex flex-col justify-between ${selectedRole === opt.role
                           ? 'border-emerald-700 bg-emerald-50/60 ring-2 ring-emerald-700/20'
                           : 'border-stone-200 hover:border-stone-300 bg-stone-50/50'
                         }`}
                     >
                       <div>
-                        <span className="text-2xl mb-1.5 block">{opt.icon}</span>
+                        <span className="text-emerald-800 mb-1.5 block">{opt.icon}</span>
                         <h4 className="text-xs font-bold text-stone-900 leading-tight mb-1">
                           {opt.title}
                         </h4>
@@ -121,7 +125,7 @@ export default function RegisterPage() {
                           {opt.desc}
                         </p>
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
               </div>
@@ -233,4 +237,3 @@ export default function RegisterPage() {
     </div>
   );
 }
-

@@ -32,7 +32,7 @@ export const MOCK_CATEGORIES: Category[] = [
     name: 'Tubercules & Racines',
     slug: 'tubercules-racines',
     description: 'Manioc doux, cossettes séchées, patates douces, ignames et taro de nos terroirs.',
-    icon: '🍠',
+    icon: 'tubercules',
     itemCount: 48,
   },
   {
@@ -40,7 +40,7 @@ export const MOCK_CATEGORIES: Category[] = [
     name: 'Céréales & Grains',
     slug: 'cereales-grains',
     description: 'Maïs jaune pour provenderie, maïs blanc, riz de Bumba, sorgho et millet.',
-    icon: '🌽',
+    icon: 'cereals',
     itemCount: 62,
   },
   {
@@ -48,7 +48,7 @@ export const MOCK_CATEGORIES: Category[] = [
     name: 'Légumes & Maraîchage',
     slug: 'legumes-maraichage',
     description: 'Feuilles de manioc (Pondu/Saka-saka), matembele, bitekuteku, tomates et piments frais.',
-    icon: '🥬',
+    icon: 'vegetables',
     itemCount: 95,
   },
   {
@@ -56,7 +56,7 @@ export const MOCK_CATEGORIES: Category[] = [
     name: 'Légumineuses & Protéagineux',
     slug: 'legumineuses-proteagineux',
     description: 'Haricots rouges et noirs du Kivu, arachides du Bandundu, graines de courge et soja.',
-    icon: '🥜',
+    icon: 'legumes',
     itemCount: 39,
   },
   {
@@ -64,7 +64,7 @@ export const MOCK_CATEGORIES: Category[] = [
     name: 'Fruits Tropicaux',
     slug: 'fruits-tropicaux',
     description: 'Bananes plantains (Makemba), papayes solo, mangues du Mayumbe, ananas et avocats.',
-    icon: '🍌',
+    icon: 'fruits',
     itemCount: 54,
   },
   {
@@ -72,7 +72,7 @@ export const MOCK_CATEGORIES: Category[] = [
     name: 'Intrants & Équipements',
     slug: 'intrants-equipements',
     description: 'Semences certifiées ONASEN, fertilisants NPK, pulvérisateurs, houes et motopompes.',
-    icon: '🚜',
+    icon: 'supplies',
     itemCount: 31,
   },
 ];
@@ -414,4 +414,3 @@ export const MOCK_OFFERS: SellerOfferItem[] = [
     imageUrl: 'https://images.unsplash.com/photo-1525607551316-4a8e16d1f9ba?auto=format&fit=crop&q=80&w=800',
   },
 ];
-

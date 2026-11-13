@@ -7,9 +7,8 @@ import { ProductCard } from '../../components/marketplace/ProductCard';
 import { SellerCard } from '../../components/marketplace/SellerCard';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Input } from '../../components/ui/Input';
-import { Button } from '../../components/ui/Button';
 import { IconSearch } from '../../components/ui/Icons';
-import { MOCK_OFFERS, MOCK_SELLERS, MOCK_CATEGORIES } from '../../data/mockData';
+import { MOCK_OFFERS, MOCK_SELLERS } from '../../data/mockData';
 import { DRC_PROVINCES } from '../../constants/drc';
 
 function SearchResultsContent() {
@@ -132,7 +131,7 @@ function SearchResultsContent() {
 
         {totalResults === 0 ? (
           <EmptyState
-            icon="🔎"
+            icon={<IconSearch className="w-7 h-7" aria-hidden="true" />}
             title="Aucun résultat correspondant"
             description={`Nous n'avons trouvé aucun produit ni vendeur correspondant à votre recherche. Vérifiez l'orthographe ou tentez d'élargir la province sélectionnée.`}
             actionText="Parcourir tout le catalogue"
@@ -181,4 +180,3 @@ export default function SearchPage() {
     </Suspense>
   );
 }
-

@@ -7,7 +7,7 @@ import { PageHeader } from '../../../components/layout/PageHeader';
 import { ProductCard } from '../../../components/marketplace/ProductCard';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { translateSellerType } from '../../../utils/format';
-import { IconShieldCheck, IconLocation, IconStar, IconPhone, IconBuilding } from '../../../components/ui/Icons';
+import { IconCheck, IconPlant, IconShieldCheck, IconLocation, IconStar, IconPhone, IconBuilding } from '../../../components/ui/Icons';
 import { MOCK_SELLERS, MOCK_OFFERS } from '../../../data/mockData';
 
 export default function SellerProfilePage() {
@@ -138,13 +138,15 @@ export default function SellerProfilePage() {
                   </h4>
                   <div className="flex flex-wrap gap-2">
                     {seller.specialties.map((spec) => (
-                      <span key={spec} className="text-xs bg-stone-100 text-stone-700 font-semibold px-3 py-1 rounded-lg">
-                        🌾 {spec}
+                      <span key={spec} className="text-xs bg-stone-100 text-stone-700 font-semibold px-3 py-1 rounded-lg inline-flex items-center gap-1">
+                        <IconPlant className="w-3.5 h-3.5 text-emerald-700" aria-hidden="true" />
+                        {spec}
                       </span>
                     ))}
                     {seller.badges.map((b) => (
-                      <span key={b} className="text-xs bg-emerald-50 text-emerald-800 border border-emerald-200 font-semibold px-3 py-1 rounded-lg">
-                        ✓ {b}
+                      <span key={b} className="text-xs bg-emerald-50 text-emerald-800 border border-emerald-200 font-semibold px-3 py-1 rounded-lg inline-flex items-center gap-1">
+                        <IconCheck className="w-3.5 h-3.5" aria-hidden="true" />
+                        {b}
                       </span>
                     ))}
                   </div>
@@ -202,4 +204,3 @@ export default function SellerProfilePage() {
     </div>
   );
 }
-

@@ -90,17 +90,17 @@ async function testApp() {
   // 5. Test Cart Calculate (Multi-Vendeurs)
   const cartRes = await request('POST', '/api/v1/cart/calculate', {
     items: [
-      { offerId: 'off-manioc-kikwit-01', quantity: 2, saleType: 'RETAIL' },
-      { offerId: 'off-mais-katanga-01', quantity: 20, saleType: 'WHOLESALE' },
+      { offerId: 'off-manioc-coopak', quantity: 2, saleType: 'RETAIL' },
+      { offerId: 'off-pondu-agrodistrib', quantity: 20, saleType: 'WHOLESALE' },
     ],
   });
-  console.log('✅ 5. POST /api/v1/cart/calculate -> Status:', cartRes.statusCode, '| Vendeurs distincts:', cartRes.body.data.totalDistinctSellers, '| Total CDF:', cartRes.body.data.totals.totalCdf, 'FC | Total USD:', cartRes.body.data.totals.totalUsd, '$');
+  console.log('✅ 5. POST /api/v1/cart/calculate -> Status:', cartRes.statusCode, '| Vendeurs distincts:', cartRes.body.data.distinctSellersCount, '| Total CDF:', cartRes.body.data.totals.totalCdf, 'FC | Total USD:', cartRes.body.data.totals.totalUsd, '$');
 
   // 6. Test Create Order (RDC Province, Snapshot Taux, Suborders)
   const orderRes = await request('POST', '/api/v1/orders', {
     items: [
-      { offerId: 'off-manioc-kikwit-01', quantity: 2, saleType: 'RETAIL' },
-      { offerId: 'off-mais-katanga-01', quantity: 20, saleType: 'WHOLESALE' },
+      { offerId: 'off-manioc-coopak', quantity: 2, saleType: 'RETAIL' },
+      { offerId: 'off-pondu-agrodistrib', quantity: 20, saleType: 'WHOLESALE' },
     ],
     currency: 'CDF',
     deliveryProvince: 'Kinshasa',

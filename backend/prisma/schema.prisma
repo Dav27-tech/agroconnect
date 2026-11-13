@@ -21,8 +21,8 @@ enum UserRole {
 
 enum SellerType {
   FARMER    // Agriculteur / Producteur direct
-  RESELLER  // Revendeur indépendant
-  SUPPLIER  // Fournisseur d'intrants et d'équipements
+  RESELLER  // Revendeur indépendant (marchés urbains, grossistes)
+  SUPPLIER  // Fournisseur d'intrants et d'équipements agricoles
 }
 
 enum VerificationStatus {
@@ -52,8 +52,18 @@ enum UnitOfMeasure {
 }
 
 enum SaleType {
-  RETAIL    // Détail
-  WHOLESALE // Gros
+  RETAIL    // Vente au détail
+  WHOLESALE // Vente en gros
+}
+
+enum StockMovementType {
+  INITIAL_STOCK           // Stock initial à la création
+  RESTOCK                 // Réapprovisionnement par le vendeur
+  ORDER_RESERVATION       // Réservation lors de la commande client
+  ORDER_FULFILLMENT       // Déduction définitive après livraison
+  ORDER_CANCELLED_RESTORE // Réintégration suite à annulation
+  MANUAL_ADJUSTMENT       // Ajustement inventaire manuel par le vendeur
+  SPOILAGE_LOSS           // Perte, avarie ou dépréciation signalée
 }
 
 enum ParentOrderStatus {
@@ -117,22 +127,23 @@ enum PayoutStatus {
 // ----------------------------------------------------
 
 model User {
-  id            String    @id @default(uuid())
-  phoneNumber   String    @unique // Numéro congolais (ex: +243...)
-  email         String?   @unique
+  id            String     @id @default(uuid())
+  phoneNumber   String     @unique // Numéro congolais (ex: +243810000001)
+  email         String?    @unique
   passwordHash  String
   fullName      String
-  role          UserRole  @default(BUYER)
-  isActive      Boolean   @default(true)
-  preferredLang String    @default("fr")
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  roles         UserRole[] @default([BUYER]) // Support multi-rôles natif
+  isActive      Boolean    @default(true)
+  preferredLang String     @default("fr")
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
 
   // Relations
   sellerProfile    SellerProfile?
   deliveryProfile  DeliveryProfile?
   parentOrders     ParentOrder[]    @relation("BuyerOrders")
   notifications    Notification[]
+  carts            Cart[]
 
   @@map("users")
 }
@@ -144,7 +155,7 @@ model SellerProfile {
   sellerType         SellerType
   businessName       String
   description        String?
-  province           String             // Province en RDC (ex: Kinshasa, Haut-Katanga, Nord-Kivu)
+  province           String             // Province en RDC (ex: Kinshasa, Kwilu, Haut-Katanga, Nord-Kivu)
   city               String             // Ville ou territoire
   address            String?
   verificationStatus VerificationStatus @default(PENDING)
@@ -156,6 +167,8 @@ model SellerProfile {
   subOrders          SubOrder[]
   sellerServices     SellerService[]
   payouts            SellerPayout[]
+  stockMovements     StockMovement[]
+  financialRecords   FinancialRecord[]
 
   @@map("seller_profiles")
 }
@@ -167,7 +180,7 @@ model DeliveryProfile {
   companyName    String?
   vehicleType    String?
   plateNumber    String?
-  operatingArea  String             // Région d'opération (ex: Kinshasa - Gombe / Limete)
+  operatingArea  String             // Région d'opération (ex: Kinshasa - Gombe / Limete / Masina)
   isAvailable    Boolean            @default(true)
   status         VerificationStatus @default(PENDING)
   createdAt      DateTime           @default(now())
@@ -179,17 +192,18 @@ model DeliveryProfile {
 }
 
 model Category {
-  id          String    @id @default(uuid())
-  name        String    @unique // ex: Céréales, Tubercules, Maraîchage, Intrants
-  slug        String    @unique
+  id          String     @id @default(uuid())
+  name        String     @unique // ex: Tubercules & Racines, Céréales & Grains, Légumes & Maraîchage
+  slug        String     @unique
   description String?
   imageUrl    String?
+  icon        String?
   parentId    String?
   parent      Category?  @relation("SubCategories", fields: [parentId], references: [id])
   children    Category[] @relation("SubCategories")
   products    Product[]
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
 
   @@map("categories")
 }
@@ -200,6 +214,7 @@ model Product {
   slug          String        @unique
   description   String?
   standardUnit  UnitOfMeasure @default(KG)
+  scientificName String?
   imageUrl      String?
   categoryId    String
   category      Category      @relation(fields: [categoryId], references: [id])
@@ -212,38 +227,41 @@ model Product {
 }
 
 model Offer {
-  id                  String        @id @default(uuid())
+  id                  String         @id @default(uuid())
   sellerId            String
-  seller              SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  seller              SellerProfile  @relation(fields: [sellerId], references: [id], onDelete: Cascade)
   productId           String
-  product             Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product             Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
   
-  // Stock unique partagé entre vente au détail et en gros
-  stockQuantity       Decimal       @default(0.00)
-  unit                UnitOfMeasure @default(KG)
-  isAvailable         Boolean       @default(true)
+  // Stock unique et partagé entre la vente au détail et en gros (évite tout sur-stockage)
+  stockQuantity       Decimal        @default(0.00)
+  unit                UnitOfMeasure  @default(KG)
+  isAvailable         Boolean        @default(true)
   
-  // Prix au détail (Retail)
+  // Vente au détail (Retail)
   retailPriceCdf      Decimal
   retailPriceUsd      Decimal
-  retailMinQuantity   Decimal       @default(1.00)
+  retailMinQuantity   Decimal        @default(1.00)
 
-  // Prix de gros (Wholesale)
+  // Vente en gros (Wholesale)
   wholesalePriceCdf   Decimal?
   wholesalePriceUsd   Decimal?
   wholesaleMinQuantity Decimal?
 
-  // Origine géographique spécifique de la récolte
+  // Traçabilité et origine de la récolte
   harvestDate         DateTime?
-  originProvince      String        // Ex: Kwilu
-  originCity          String?       // Ex: Kikwit
-  qualityGrade        String?       // Ex: Grade 1, Extra, Bio
+  originProvince      String         // Ex: Kwilu, Haut-Katanga, Nord-Kivu
+  originCity          String?        // Ex: Kikwit, Lubumbashi, Goma
+  qualityGrade        String?        // Ex: Extra, Grade 1, Bio
+  imageUrl            String?
 
-  createdAt           DateTime      @default(now())
-  updatedAt           DateTime      @updatedAt
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
 
   orderItems          OrderItem[]
   services            OfferService[]
+  stockMovements      StockMovement[]
+  cartItems           CartItem[]
 
   @@map("offers")
 }
@@ -252,7 +270,7 @@ model SellerService {
   id          String         @id @default(uuid())
   sellerId    String
   seller      SellerProfile  @relation(fields: [sellerId], references: [id], onDelete: Cascade)
-  serviceType String         // ex: LIVRAISON_EXPRESS, CONDITIONNEMENT, CALIBRAGE_TRI, GARANTIE_FRAICHEUR
+  serviceType String         // LIVRAISON_EXPRESS, CONDITIONNEMENT, CALIBRAGE_TRI, GARANTIE_FRAICHEUR
   title       String
   description String?
   extraFeeCdf Decimal        @default(0.00)
@@ -277,15 +295,64 @@ model OfferService {
   @@map("offer_services")
 }
 
+model StockMovement {
+  id             String            @id @default(uuid())
+  offerId        String
+  offer          Offer             @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  sellerId       String
+  seller         SellerProfile     @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  movementType   StockMovementType
+  quantityChange Decimal           // Positif (+ ajout) ou négatif (- déduction)
+  previousStock  Decimal
+  newStock       Decimal
+  referenceType  String?           // SUB_ORDER, MANUAL_AUDIT, RETURN, RESTOCK
+  referenceId    String?           // Id de la sous-commande ou du bon de livraison
+  notes          String?
+  createdByUserId String?
+  createdAt      DateTime          @default(now())
+
+  @@index([offerId])
+  @@index([sellerId])
+  @@map("stock_movements")
+}
+
+model Cart {
+  id        String     @id @default(uuid())
+  userId    String?    @unique
+  user      User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessionId String?    @unique
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  items     CartItem[]
+
+  @@map("carts")
+}
+
+model CartItem {
+  id        String   @id @default(uuid())
+  cartId    String
+  cart      Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  offerId   String
+  offer     Offer    @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  saleType  SaleType @default(RETAIL)
+  quantity  Decimal  @default(1.00)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([cartId, offerId, saleType])
+  @@map("cart_items")
+}
+
 model ParentOrder {
   id                   String            @id @default(uuid())
-  orderNumber          String            @unique // ex: AGC-ORD-202611-001
+  orderNumber          String            @unique // AGC-ORD-202611-XXXX
   buyerId              String
   buyer                User              @relation("BuyerOrders", fields: [buyerId], references: [id])
   status               ParentOrderStatus @default(PENDING)
   
-  // Taux de change historique figé au moment de la création
-  exchangeRateSnapshot Decimal           // Taux 1 USD = X CDF appliqué
+  // Taux de change historique figé au moment exact de la commande
+  exchangeRateSnapshot Decimal           // 1 USD = X CDF
   currency             Currency          @default(CDF)
   
   totalItemsCdf        Decimal           @default(0.00)
@@ -295,7 +362,7 @@ model ParentOrder {
   totalAmountCdf       Decimal           @default(0.00)
   totalAmountUsd       Decimal           @default(0.00)
 
-  // Adresse de livraison en RDC
+  // Coordonnées de livraison en RDC
   deliveryProvince     String
   deliveryCity         String
   deliveryCommune      String?
@@ -314,30 +381,33 @@ model ParentOrder {
 }
 
 model SubOrder {
-  id                   String         @id @default(uuid())
-  subOrderNumber       String         @unique // ex: AGC-SUB-202611-001-A
-  parentOrderId        String
-  parentOrder          ParentOrder    @relation(fields: [parentOrderId], references: [id], onDelete: Cascade)
-  sellerId             String
-  seller               SellerProfile  @relation(fields: [sellerId], references: [id])
-  status               SubOrderStatus @default(PENDING)
+  id                  String           @id @default(uuid())
+  subOrderNumber      String           @unique // AGC-SUB-202611-XXXX-X
+  parentOrderId       String
+  parentOrder         ParentOrder      @relation(fields: [parentOrderId], references: [id], onDelete: Cascade)
+  sellerId            String
+  seller              SellerProfile    @relation(fields: [sellerId], references: [id])
+  status              SubOrderStatus   @default(PENDING)
   
-  subtotalCdf          Decimal        @default(0.00)
-  subtotalUsd          Decimal        @default(0.00)
-  commissionRate       Decimal        @default(5.00)
-  commissionAmountCdf  Decimal        @default(0.00)
-  commissionAmountUsd  Decimal        @default(0.00)
-  payoutAmountCdf      Decimal        @default(0.00)
-  payoutAmountUsd      Decimal        @default(0.00)
-  payoutStatus         PayoutStatus   @default(PENDING)
+  subtotalCdf         Decimal          @default(0.00)
+  subtotalUsd         Decimal          @default(0.00)
+  commissionRate      Decimal          @default(5.00) // Taux de commission AgroConnect (ex: 5%)
+  commissionAmountCdf Decimal          @default(0.00)
+  commissionAmountUsd Decimal          @default(0.00)
+  payoutAmountCdf     Decimal          @default(0.00) // Part nette due au vendeur
+  payoutAmountUsd     Decimal          @default(0.00)
+  payoutStatus        PayoutStatus     @default(PENDING)
 
-  createdAt            DateTime       @default(now())
-  updatedAt            DateTime       @updatedAt
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
 
-  items                OrderItem[]
-  delivery             Delivery?
-  payouts              SellerPayout[]
+  items               OrderItem[]
+  delivery            Delivery?
+  payouts             SellerPayout[]
+  financialRecord     FinancialRecord?
 
+  @@index([sellerId])
+  @@index([parentOrderId])
   @@map("sub_orders")
 }
 
@@ -359,20 +429,20 @@ model OrderItem {
 }
 
 model PaymentTransaction {
-  id                     String              @id @default(uuid())
-  parentOrderId          String
-  parentOrder            ParentOrder         @relation(fields: [parentOrderId], references: [id], onDelete: Cascade)
-  provider               PaymentProviderType
-  providerTransactionId  String?             @unique
-  idempotencyKey         String              @unique
-  amountCdf              Decimal
-  amountUsd              Decimal
-  currency               Currency
-  status                 PaymentStatus       @default(PENDING)
-  verifiedAt             DateTime?
-  rawResponse            String?             // JSON brut pour traçabilité
-  createdAt              DateTime            @default(now())
-  updatedAt              DateTime            @updatedAt
+  id                    String              @id @default(uuid())
+  parentOrderId         String
+  parentOrder           ParentOrder         @relation(fields: [parentOrderId], references: [id], onDelete: Cascade)
+  provider              PaymentProviderType
+  providerTransactionId String?             @unique
+  idempotencyKey        String              @unique
+  amountCdf             Decimal
+  amountUsd             Decimal
+  currency              Currency
+  status                PaymentStatus       @default(PENDING)
+  verifiedAt            DateTime?
+  rawResponse           String?             // JSON brut pour audit et traçabilité
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
 
   @@map("payment_transactions")
 }
@@ -384,7 +454,7 @@ model Delivery {
   personnelId         String?
   personnel           DeliveryProfile?     @relation("PersonnelDeliveries", fields: [personnelId], references: [id])
   status              DeliveryStatus       @default(PENDING)
-  trackingCode        String               @unique
+  trackingCode        String               @unique // AGC-TRK-XXXXXX
   pickupProvince      String
   pickupCity          String
   pickupAddress       String
@@ -402,44 +472,72 @@ model Delivery {
 }
 
 model DeliveryStatusHistory {
-  id          String         @id @default(uuid())
-  deliveryId  String
-  delivery    Delivery       @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
-  status      DeliveryStatus
-  notes       String?
-  location    String?
-  recordedBy  String?
-  createdAt   DateTime       @default(now())
+  id         String         @id @default(uuid())
+  deliveryId String
+  delivery   Delivery       @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  status     DeliveryStatus
+  notes      String?
+  location   String?
+  recordedBy String?
+  createdAt  DateTime       @default(now())
 
+  @@index([deliveryId])
   @@map("delivery_status_history")
 }
 
 model ExchangeRateConfig {
-  id            String    @id @default(uuid())
-  baseCurrency  Currency  @default(USD)
-  targetCurrency Currency @default(CDF)
-  rate          Decimal   // Ex: 2850.00
-  isActive      Boolean   @default(true)
-  source        String    @default("MANUAL_CONFIG")
-  effectiveFrom DateTime  @default(now())
-  createdAt     DateTime  @default(now())
+  id                 String    @id @default(uuid())
+  baseCurrency       Currency  @default(USD)
+  targetCurrency     Currency  @default(CDF)
+  rate               Decimal   // Ex: 2850.00 (1 USD = 2850 CDF)
+  isActive           Boolean   @default(true)
+  source             String    @default("MANUAL_CONFIG")
+  effectiveFrom      DateTime  @default(now())
+  configuredByUserId String?
+  configuredByName   String?
+  notes              String?
+  createdAt          DateTime  @default(now())
 
   @@map("exchange_rate_configs")
 }
 
+model FinancialRecord {
+  id                  String       @id @default(uuid())
+  subOrderId          String       @unique
+  subOrder            SubOrder     @relation(fields: [subOrderId], references: [id], onDelete: Cascade)
+  sellerId            String
+  seller              SellerProfile @relation(fields: [sellerId], references: [id])
+  parentOrderId       String
+  grossAmountCdf      Decimal
+  grossAmountUsd      Decimal
+  commissionRate      Decimal      // Ex: 5.00
+  commissionAmountCdf Decimal
+  commissionAmountUsd Decimal
+  sellerEarningsCdf   Decimal
+  sellerEarningsUsd   Decimal
+  exchangeRateApplied Decimal      // Snapshot du taux
+  status              PayoutStatus @default(PENDING)
+  recordedAt          DateTime     @default(now())
+  payoutRef           String?
+  paidAt              DateTime?
+
+  @@index([sellerId])
+  @@map("financial_records")
+}
+
 model SellerPayout {
-  id           String       @id @default(uuid())
-  sellerId     String
-  seller       SellerProfile @relation(fields: [sellerId], references: [id])
-  subOrderId   String
-  subOrder     SubOrder     @relation(fields: [subOrderId], references: [id])
-  amountCdf    Decimal
-  amountUsd    Decimal
-  status       PayoutStatus @default(PENDING)
-  paidAt       DateTime?
-  reference    String?
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  id         String       @id @default(uuid())
+  sellerId   String
+  seller     SellerProfile @relation(fields: [sellerId], references: [id])
+  subOrderId String
+  subOrder   SubOrder     @relation(fields: [subOrderId], references: [id])
+  amountCdf  Decimal
+  amountUsd  Decimal
+  status     PayoutStatus @default(PENDING)
+  paidAt     DateTime?
+  reference  String?
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
 
   @@map("seller_payouts")
 }
@@ -454,6 +552,6 @@ model Notification {
   link      String?
   createdAt DateTime @default(now())
 
+  @@index([userId])
   @@map("notifications")
 }
-

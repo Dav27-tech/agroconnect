@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useCurrency } from '../../context/CurrencyContext';
-import { IconSearch, IconUser } from '../ui/Icons';
+import { IconPlant, IconSearch, IconUser } from '../ui/Icons';
 
 export function Navbar() {
   const { currency, toggleCurrency, exchangeRate } = useCurrency();
@@ -35,8 +35,8 @@ export function Navbar() {
         <div className="flex items-center justify-between h-20">
           {/* Logo & Identity */}
           <Link href="/" className="flex items-center gap-3 group">
-            <div className="w-11 h-11 rounded-xl bg-emerald-800 text-white flex items-center justify-center font-bold text-2xl shadow-sm group-hover:bg-emerald-700 transition">
-              🌾
+            <div className="w-11 h-11 rounded-xl bg-emerald-800 text-white flex items-center justify-center shadow-sm group-hover:bg-emerald-700 transition">
+              <IconPlant className="w-6 h-6" aria-hidden="true" />
             </div>
             <div>
               <div className="flex items-center gap-1.5">
@@ -121,7 +121,9 @@ export function Navbar() {
             type="button"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             className="lg:hidden p-2 text-stone-600 hover:text-stone-900"
-            aria-label="Ouvrir le menu"
+            aria-label={mobileMenuOpen ? 'Fermer le menu' : 'Ouvrir le menu'}
+            aria-expanded={mobileMenuOpen}
+            aria-controls="mobile-navigation"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16m-7 6h7" />
@@ -131,7 +133,7 @@ export function Navbar() {
 
         {/* Mobile Dropdown */}
         {mobileMenuOpen && (
-          <div className="lg:hidden py-4 border-t border-stone-200 flex flex-col gap-3">
+          <div id="mobile-navigation" className="lg:hidden py-4 border-t border-stone-200 flex flex-col gap-3">
             <Link href="/catalogue" className="text-sm font-semibold py-2 text-stone-700" onClick={() => setMobileMenuOpen(false)}>
               Catalogue Produits
             </Link>

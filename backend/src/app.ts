@@ -4,11 +4,12 @@ import helmet from 'helmet';
 import { env } from './config/env.js';
 import { DRC_PROVINCES, SUPPORTED_CURRENCIES } from './config/drc.js';
 import { dbManager } from './database/client.js';
-import { exchangeRateService } from './integrations/exchangeRate/ConfigExchangeRateProvider.js';
+import { AgroStore } from './database/store.js';
 import { errorHandler } from './common/middleware/error.middleware.js';
 import { requestLogger } from './common/middleware/logger.middleware.js';
 import { rateLimiter } from './common/middleware/rateLimiter.middleware.js';
 import { sendSuccess, sendError } from './common/response.js';
+import { openApiSpecification, getSwaggerHtml } from './docs/swagger.js';
 
 // Import des routes des modules métiers
 import { authRoutes } from './modules/auth/auth.routes.js';
@@ -30,14 +31,18 @@ import { adminRoutes } from './modules/admin/admin.routes.js';
 export function createApp(): Express {
   const app = express();
 
-  // 1. Sécurité et en-têtes HTTP
-  app.use(helmet());
+  // 1. Sécurité et en-têtes HTTP (désactivation sélective CSP pour Swagger UI)
+  app.use(
+    helmet({
+      contentSecurityPolicy: false,
+    })
+  );
   app.use(
     cors({
       origin: env.CORS_ORIGIN,
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization', 'X-Correlation-ID'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Correlation-ID', 'X-Session-ID'],
     })
   );
 
@@ -51,29 +56,50 @@ export function createApp(): Express {
 
   // 4. Point de terminaison de santé (Health check)
   app.get('/api/health', async (_req: Request, res: Response) => {
-    const rateSnapshot = await exchangeRateService.getCurrentRate('USD', 'CDF');
+    const rateSnapshot = AgroStore.getActiveExchangeRate();
     const dbStatus = dbManager.getStatus();
 
-    return sendSuccess(res, {
-      status: 'UP',
-      service: 'agroconnect-backend-api',
-      version: '1.0.0',
-      timestamp: new Date().toISOString(),
-      country: 'République Démocratique du Congo (RDC)',
-      provincesCount: DRC_PROVINCES.length,
-      supportedCurrencies: SUPPORTED_CURRENCIES,
-      exchangeRateSnapshot: {
-        pair: 'USD/CDF',
-        rate: rateSnapshot.rate,
-        source: rateSnapshot.source,
+    return sendSuccess(
+      res,
+      {
+        status: 'UP',
+        service: 'agroconnect-backend-api',
+        version: '1.0.0',
+        timestamp: new Date().toISOString(),
+        country: 'République Démocratique du Congo (RDC)',
+        provincesCount: DRC_PROVINCES.length,
+        supportedCurrencies: SUPPORTED_CURRENCIES,
+        exchangeRateSnapshot: {
+          pair: `${rateSnapshot.baseCurrency}/${rateSnapshot.targetCurrency}`,
+          rate: rateSnapshot.rate,
+          source: rateSnapshot.source,
+          effectiveDate: rateSnapshot.effectiveFrom,
+        },
+        database: dbStatus,
+        criticalBusinessRule:
+          'Intermédiaire strict : AgroConnect n\'achète, ne stocke, ne possède ni ne revend aucun produit agricole.',
       },
-      database: dbStatus,
-      criticalBusinessRule: 'Intermédiaire strict : AgroConnect n\'achète, ne stocke, ne possède ni ne revend aucun produit agricole.',
-    }, 'Système AgroConnect opérationnel');
+      'Système AgroConnect opérationnel'
+    );
   });
 
-  // 5. Montage des routes métiers sous /api/v1
+  // 5. Documentation OpenAPI 3.0 & Swagger UI
+  app.get('/api-docs', (_req: Request, res: Response) => {
+    res.redirect('/api/v1/docs');
+  });
+
+  // 6. Montage des routes métiers sous /api/v1
   const v1 = express.Router();
+
+  // Endpoints Documentation Swagger
+  v1.get('/openapi.json', (_req: Request, res: Response) => {
+    res.json(openApiSpecification);
+  });
+  v1.get('/docs', (_req: Request, res: Response) => {
+    res.setHeader('Content-Type', 'text/html');
+    res.send(getSwaggerHtml());
+  });
+
   v1.use('/auth', authRoutes);
   v1.use('/users', userRoutes);
   v1.use('/sellers', sellerRoutes);
@@ -92,14 +118,13 @@ export function createApp(): Express {
 
   app.use('/api/v1', v1);
 
-  // 6. Gestion des routes non trouvées (404)
+  // 7. Gestion des routes non trouvées (404)
   app.use((req: Request, res: Response) => {
     sendError(res, `Route ${req.method} ${req.originalUrl} introuvable sur l'API AgroConnect`, 404, 'NOT_FOUND');
   });
 
-  // 7. Gestionnaire d'erreurs global
+  // 8. Gestionnaire d'erreurs global
   app.use(errorHandler);
 
   return app;
 }
-

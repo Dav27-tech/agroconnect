@@ -33,14 +33,18 @@ function extractCandidates(dir) {
 }
 
 async function buildCss() {
-  console.log('🌾 AgroConnect : Génération du bundle Tailwind CSS v4...');
+  console.log('AgroConnect : génération du bundle Tailwind CSS v4...');
   const candidates = extractCandidates(SRC_DIR);
-  console.log(`🔍 ${candidates.length} candidats de classes analysés dans src/`);
+  console.log(`${candidates.length} candidats de classes analysés dans src/`);
 
   const ds = await __unstable__loadDesignSystem('@import "tailwindcss";', { base: ROOT_DIR });
   const compiledRules = ds.candidatesToCss(candidates);
 
-  const themeCss = fs.readFileSync(path.join(ROOT_DIR, 'node_modules/tailwindcss/theme.css'), 'utf8');
+  const themeVariables = [...ds.theme.values.entries()]
+    .filter(([, token]) => !token.value.includes('--theme('))
+    .map(([name, token]) => `  ${name}: ${token.value.replace(/\s+/g, ' ').trim()};`)
+    .join('\n');
+  const themeCss = `:root {\n${themeVariables}\n}`;
   const preflightCss = fs.readFileSync(path.join(ROOT_DIR, 'node_modules/tailwindcss/preflight.css'), 'utf8');
 
   // Custom AgroConnect Brand Design Tokens & Overrides
@@ -49,40 +53,139 @@ async function buildCss() {
  * AgroConnect DRC - Brand Design System & Tokens
  * ---------------------------------------------------- */
 :root {
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color-scheme: light;
+  --font-sans: Inter, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   
-  /* Palette Agricole RDC */
-  --color-primary-50: #f0fdf4;
-  --color-primary-100: #dcfce7;
-  --color-primary-200: #bbf7d0;
-  --color-primary-600: #16a34a;
-  --color-primary-700: #15803d;
-  --color-primary-800: #166534;
-  --color-primary-900: #14532d;
-  
-  --color-accent-50: #fff7ed;
-  --color-accent-100: #ffedd5;
-  --color-accent-500: #f97316;
-  --color-accent-600: #ea580c;
-  --color-accent-700: #c2410c;
-
-  --color-charcoal-900: #1c1917;
-  --color-charcoal-800: #292524;
-  --color-charcoal-700: #44403c;
-  --color-charcoal-600: #57534e;
-  --color-charcoal-400: #a8a29e;
+  --ac-green-950: #123226;
+  --ac-green-900: #174735;
+  --ac-green-800: #1c6044;
+  --ac-green-700: #247650;
+  --ac-green-100: #e8f3ec;
+  --ac-green-50: #f4f8f5;
+  --ac-orange-600: #c65e24;
+  --ac-orange-100: #fff1e8;
+  --color-emerald-800: #1c6044;
+  --color-emerald-900: #174735;
+  --color-emerald-50: #f4f8f5;
+  --color-orange-600: #c65e24;
+  --color-orange-700: #a94e1f;
+  --color-stone-900: #202923;
+  --color-stone-600: #68736c;
+  --color-stone-200: #e4e9e5;
+  --ac-ink: #202923;
+  --ac-muted: #68736c;
+  --ac-line: #e4e9e5;
+  --ac-canvas: #f7f9f7;
+  --ac-radius-card: 1.125rem;
+  --ac-shadow-card: 0 8px 26px rgb(22 44 31 / 0.06);
+  --ac-shadow-floating: 0 18px 48px rgb(22 44 31 / 0.14);
 }
 
 html {
   scroll-behavior: smooth;
   font-family: var(--font-sans);
+  background: #fff;
 }
 
 body {
-  color: var(--color-charcoal-900);
-  background-color: #fafaf9;
+  color: var(--ac-ink);
+  background-color: #fff;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+a {
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+::selection {
+  color: var(--ac-green-950);
+  background: #d7ecdf;
+}
+
+:focus-visible {
+  outline: 3px solid rgb(36 118 80 / 0.48);
+  outline-offset: 3px;
+}
+
+.ac-container {
+  width: min(100% - 2rem, 80rem);
+  margin-inline: auto;
+}
+
+.ac-card {
+  border: 1px solid var(--ac-line);
+  border-radius: var(--ac-radius-card);
+  background: #fff;
+  box-shadow: var(--ac-shadow-card);
+}
+
+.ac-eyebrow {
+  color: var(--ac-green-800);
+  font-size: 0.72rem;
+  font-weight: 750;
+  letter-spacing: 0.1em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.ac-hero-photo {
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: 1rem;
+  background: var(--ac-green-950);
+}
+
+.ac-hero-photo img {
+  transition: transform 500ms ease;
+}
+
+.ac-hero-photo:hover img {
+  transform: scale(1.035);
+}
+
+.ac-form-control {
+  min-height: 2.875rem;
+  border: 1px solid #d6ded8;
+  border-radius: 0.75rem;
+  background: #fff;
+}
+
+.ac-form-control:focus {
+  border-color: var(--ac-green-700);
+  box-shadow: 0 0 0 3px rgb(36 118 80 / 0.12);
+  outline: none;
+}
+
+@media (max-width: 640px) {
+  .ac-container {
+    width: min(100% - 1.25rem, 80rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 /* Custom Scrollbar */
@@ -123,4 +226,3 @@ body {
 }
 
 buildCss().catch(console.error);
-

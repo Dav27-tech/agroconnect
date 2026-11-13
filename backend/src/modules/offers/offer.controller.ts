@@ -1,139 +1,191 @@
 import { Request, Response } from 'express';
 import { sendSuccess, sendError } from '../../common/response.js';
-import { SellerOfferItem } from './offer.types.js';
-import { exchangeRateService } from '../../integrations/exchangeRate/ConfigExchangeRateProvider.js';
+import { AgroStore, OfferRecord } from '../../database/store.js';
+import { isValidDRCProvince } from '../../config/drc.js';
+import crypto from 'node:crypto';
 
-export const demoOffers: SellerOfferItem[] = [
-  {
-    id: 'off-manioc-kikwit-01',
-    sellerId: 'seller-kikwit-01',
-    sellerName: 'Coopérative Agricole du Kwilu (COOPAK)',
-    sellerType: 'FARMER',
-    productId: 'prod-manioc-doux',
-    productName: 'Manioc Frais Doux',
-    categoryName: 'Tubercules & Racines',
-    unit: 'Sac 50kg',
-    stockQuantity: 450,
-    isAvailable: true,
-    retailPriceCdf: 35000,
-    retailPriceUsd: 12.28,
-    retailMinQuantity: 1,
-    wholesalePriceCdf: 28500,
-    wholesalePriceUsd: 10.0,
-    wholesaleMinQuantity: 10,
-    servicesOffered: ['TRI_MANUEL', 'CONDITIONNEMENT_SAC_PISSENLIT'],
-    qualityGrade: 'Grade 1 (Frais du jour)',
-    originProvince: 'Kwilu',
-    originCity: 'Kikwit',
-  },
-  {
-    id: 'off-manioc-kin-reseller',
-    sellerId: 'seller-kin-02',
-    sellerName: 'AgroDistrib Kinshasa Express',
-    sellerType: 'RESELLER',
-    productId: 'prod-manioc-doux',
-    productName: 'Manioc Frais Doux Lavé & Épluché',
-    categoryName: 'Tubercules & Racines',
-    unit: 'Sac 50kg',
-    stockQuantity: 85,
-    isAvailable: true,
-    retailPriceCdf: 42000,
-    retailPriceUsd: 14.73,
-    retailMinQuantity: 1,
-    wholesalePriceCdf: 36000,
-    wholesalePriceUsd: 12.63,
-    wholesaleMinQuantity: 5,
-    servicesOffered: ['LIVRAISON_EXPRESS_KINSHASA', 'LAVAGE_EPLUCHAGE', 'GARANTIE_FRAICHEUR_48H'],
-    qualityGrade: 'Prêt à la transformation',
-    originProvince: 'Kinshasa',
-    originCity: 'Kinshasa (Marché de la Liberté)',
-  },
-  {
-    id: 'off-mais-katanga-01',
-    sellerId: 'seller-katanga-03',
-    sellerName: 'Intrants du Sud (Katanga Agro-Tech)',
-    sellerType: 'SUPPLIER',
-    productId: 'prod-mais-grain-jaune',
-    productName: 'Maïs Grain Jaune Séché',
-    categoryName: 'Céréales & Grains',
-    unit: 'Sac 100kg',
-    stockQuantity: 1200,
-    isAvailable: true,
-    retailPriceCdf: 110000,
-    retailPriceUsd: 38.6,
-    retailMinQuantity: 1,
-    wholesalePriceCdf: 95000,
-    wholesalePriceUsd: 33.33,
-    wholesaleMinQuantity: 20,
-    servicesOffered: ['CONTROLE_HUMIDITE_CERTIFIE', 'CHARGEMENT_CAMION_ASSISTE'],
-    qualityGrade: 'Standard Minoterie',
-    originProvince: 'Haut-Katanga',
-    originCity: 'Lubumbashi',
-  },
-  {
-    id: 'off-pondu-kikwit-01',
-    sellerId: 'seller-kikwit-01',
-    sellerName: 'Coopérative Agricole du Kwilu (COOPAK)',
-    sellerType: 'FARMER',
-    productId: 'prod-pondu-frais',
-    productName: 'Feuilles de Manioc (Pondu)',
-    categoryName: 'Légumes & Maraîchage',
-    unit: 'Grande Botte',
-    stockQuantity: 600,
-    isAvailable: true,
-    retailPriceCdf: 3000,
-    retailPriceUsd: 1.05,
-    retailMinQuantity: 3,
-    wholesalePriceCdf: 2200,
-    wholesalePriceUsd: 0.77,
-    wholesaleMinQuantity: 30,
-    servicesOffered: ['CUEILLETTE_DU_MATIN'],
-    qualityGrade: 'Extra Frais',
-    originProvince: 'Kwilu',
-    originCity: 'Kikwit',
-  },
-];
+// Export pour compatibilité
+export const demoOffers = Array.from(AgroStore.offers.values());
 
 export class OfferController {
   public static async listOffers(req: Request, res: Response): Promise<Response> {
-    const { productId, sellerId, province, sellerType } = req.query;
+    const { category, province, sellerId, productId, search } = req.query;
 
-    let results = [...demoOffers];
+    let offers = Array.from(AgroStore.offers.values()).filter((o) => o.isAvailable);
 
-    if (productId && typeof productId === 'string') {
-      results = results.filter((o) => o.productId === productId);
-    }
-
-    if (sellerId && typeof sellerId === 'string') {
-      results = results.filter((o) => o.sellerId === sellerId);
+    if (category && typeof category === 'string') {
+      offers = offers.filter((o) => o.categoryName.toLowerCase().includes(category.toLowerCase()));
     }
 
     if (province && typeof province === 'string') {
-      results = results.filter((o) => o.originProvince.toLowerCase() === province.toLowerCase());
+      offers = offers.filter((o) => o.originProvince.toLowerCase() === province.toLowerCase());
     }
 
-    if (sellerType && typeof sellerType === 'string') {
-      results = results.filter((o) => o.sellerType === sellerType.toUpperCase());
+    if (sellerId && typeof sellerId === 'string') {
+      offers = offers.filter((o) => o.sellerId === sellerId);
     }
 
-    const currentRate = await exchangeRateService.getCurrentRate('USD', 'CDF');
+    if (productId && typeof productId === 'string') {
+      offers = offers.filter((o) => o.productId === productId);
+    }
 
-    return sendSuccess(res, results, 'Offres commerciales des vendeurs récupérées avec succès', 200, {
-      total: results.length,
+    if (search && typeof search === 'string') {
+      const q = search.toLowerCase();
+      offers = offers.filter(
+        (o) =>
+          o.productName.toLowerCase().includes(q) ||
+          o.sellerName.toLowerCase().includes(q) ||
+          o.originProvince.toLowerCase().includes(q)
+      );
+    }
+
+    const currentRate = AgroStore.getActiveExchangeRate();
+
+    return sendSuccess(res, offers, 'Offres agricoles récupérées avec succès', 200, {
+      total: offers.length,
       currentExchangeRate: currentRate.rate,
-      exchangeRateDate: currentRate.effectiveDate,
+      baseCurrency: currentRate.baseCurrency,
+      targetCurrency: currentRate.targetCurrency,
     });
   }
 
   public static async getOfferById(req: Request, res: Response): Promise<Response> {
-    const { id } = req.params;
-    const offer = demoOffers.find((o) => o.id === id);
+    const rawId = req.params.id;
+    const id = (Array.isArray(rawId) ? rawId[0] : rawId) || '';
+    const offer = AgroStore.offers.get(id);
 
     if (!offer) {
-      return sendError(res, `Offre commerciale '${id}' introuvable`, 404, 'OFFER_NOT_FOUND');
+      return sendError(res, `Offre agricole '${id}' introuvable`, 404, 'OFFER_NOT_FOUND');
     }
 
-    return sendSuccess(res, offer);
+    const seller = AgroStore.sellerProfiles.get(offer.sellerId);
+    const product = AgroStore.products.get(offer.productId);
+
+    return sendSuccess(res, {
+      ...offer,
+      seller,
+      product,
+    });
+  }
+
+  public static async createOffer(req: Request, res: Response): Promise<Response> {
+    const {
+      productId,
+      stockQuantity,
+      unit,
+      retailPriceCdf,
+      retailPriceUsd,
+      retailMinQuantity = 1,
+      wholesalePriceCdf,
+      wholesalePriceUsd,
+      wholesaleMinQuantity,
+      originProvince,
+      originCity,
+      qualityGrade,
+      servicesOffered = [],
+    } = req.body;
+
+    if (!req.user) {
+      return sendError(res, 'Non authentifié', 401, 'UNAUTHORIZED');
+    }
+
+    const seller = Array.from(AgroStore.sellerProfiles.values()).find((s) => s.userId === req.user!.userId);
+    if (!seller) {
+      return sendError(res, 'Aucun profil vendeur associé à cet utilisateur', 403, 'SELLER_PROFILE_REQUIRED');
+    }
+
+    const product = AgroStore.products.get(productId);
+    if (!product) {
+      return sendError(res, `Produit catalogue '${productId}' introuvable`, 404, 'PRODUCT_NOT_FOUND');
+    }
+
+    if (!originProvince || !isValidDRCProvince(originProvince)) {
+      return sendError(res, `Province d'origine '${originProvince}' invalide en RDC`, 422, 'INVALID_DRC_PROVINCE');
+    }
+
+    if (stockQuantity === undefined || stockQuantity < 0) {
+      return sendError(res, 'La quantité en stock doit être un nombre positif', 400, 'INVALID_STOCK');
+    }
+
+    const category = AgroStore.categories.get(product.categoryId);
+    const offerId = `off-${crypto.randomUUID().slice(0, 8)}`;
+
+    const newOffer: OfferRecord = {
+      id: offerId,
+      sellerId: seller.id,
+      sellerName: seller.businessName,
+      sellerType: seller.sellerType,
+      productId: product.id,
+      productName: product.name,
+      categoryName: category?.name || 'Filière Agricole',
+      stockQuantity: Number(stockQuantity),
+      unit: unit || product.standardUnit,
+      isAvailable: Number(stockQuantity) > 0,
+      retailPriceCdf: Number(retailPriceCdf),
+      retailPriceUsd: Number(retailPriceUsd),
+      retailMinQuantity: Number(retailMinQuantity),
+      wholesalePriceCdf: wholesalePriceCdf ? Number(wholesalePriceCdf) : undefined,
+      wholesalePriceUsd: wholesalePriceUsd ? Number(wholesalePriceUsd) : undefined,
+      wholesaleMinQuantity: wholesaleMinQuantity ? Number(wholesaleMinQuantity) : undefined,
+      originProvince,
+      originCity,
+      qualityGrade,
+      servicesOffered: Array.isArray(servicesOffered) ? servicesOffered : [],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    AgroStore.offers.set(offerId, newOffer);
+
+    // Mouvement de stock initial
+    AgroStore.stockMovements.push({
+      id: `mvt-init-${offerId}`,
+      offerId,
+      sellerId: seller.id,
+      movementType: 'INITIAL_STOCK',
+      quantityChange: Number(stockQuantity),
+      previousStock: 0,
+      newStock: Number(stockQuantity),
+      referenceType: 'OFFER_CREATION',
+      referenceId: offerId,
+      notes: 'Initialisation de l\'offre commerciale par le vendeur',
+      createdByUserId: req.user.userId,
+      createdAt: new Date(),
+    });
+
+    return sendSuccess(res, newOffer, 'Offre agricole créée avec succès', 201);
+  }
+
+  public static async updateOffer(req: Request, res: Response): Promise<Response> {
+    const rawId = req.params.id;
+    const id = (Array.isArray(rawId) ? rawId[0] : rawId) || '';
+    const offer = AgroStore.offers.get(id);
+
+    if (!offer) {
+      return sendError(res, `Offre '${id}' introuvable`, 404, 'OFFER_NOT_FOUND');
+    }
+
+    const {
+      retailPriceCdf,
+      retailPriceUsd,
+      retailMinQuantity,
+      wholesalePriceCdf,
+      wholesalePriceUsd,
+      wholesaleMinQuantity,
+      isAvailable,
+      qualityGrade,
+    } = req.body;
+
+    if (retailPriceCdf !== undefined) offer.retailPriceCdf = Number(retailPriceCdf);
+    if (retailPriceUsd !== undefined) offer.retailPriceUsd = Number(retailPriceUsd);
+    if (retailMinQuantity !== undefined) offer.retailMinQuantity = Number(retailMinQuantity);
+    if (wholesalePriceCdf !== undefined) offer.wholesalePriceCdf = Number(wholesalePriceCdf);
+    if (wholesalePriceUsd !== undefined) offer.wholesalePriceUsd = Number(wholesalePriceUsd);
+    if (wholesaleMinQuantity !== undefined) offer.wholesaleMinQuantity = Number(wholesaleMinQuantity);
+    if (isAvailable !== undefined) offer.isAvailable = Boolean(isAvailable);
+    if (qualityGrade !== undefined) offer.qualityGrade = qualityGrade;
+    offer.updatedAt = new Date();
+
+    return sendSuccess(res, offer, 'Offre mise à jour avec succès');
   }
 }
-

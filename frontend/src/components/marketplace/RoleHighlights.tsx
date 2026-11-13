@@ -1,10 +1,11 @@
 import React from 'react';
+import { IconBuilding, IconCart, IconCheck, IconPlant, IconTools } from '../ui/Icons';
 
 export function RoleHighlights() {
   const roles = [
     {
       title: 'Agriculteurs & Producteurs',
-      icon: '🌱',
+      icon: <IconPlant className="w-6 h-6" aria-hidden="true" />,
       tag: 'Vente Directe',
       color: 'border-emerald-200 bg-emerald-50/50',
       description:
@@ -13,7 +14,7 @@ export function RoleHighlights() {
     },
     {
       title: 'Revendeurs & Grossistes',
-      icon: '🏪',
+      icon: <IconBuilding className="w-6 h-6" aria-hidden="true" />,
       tag: 'Distribution & Services',
       color: 'border-amber-200 bg-amber-50/50',
       description:
@@ -22,7 +23,7 @@ export function RoleHighlights() {
     },
     {
       title: 'Fournisseurs d\'Intrants',
-      icon: '🚜',
+      icon: <IconTools className="w-6 h-6" aria-hidden="true" />,
       tag: 'Intrants & Outillage',
       color: 'border-sky-200 bg-sky-50/50',
       description:
@@ -31,7 +32,7 @@ export function RoleHighlights() {
     },
     {
       title: 'Acheteurs B2B & Ménages',
-      icon: '🛒',
+      icon: <IconCart className="w-6 h-6" aria-hidden="true" />,
       tag: 'Consommation & Transformation',
       color: 'border-stone-200 bg-stone-50',
       description:
@@ -64,7 +65,7 @@ export function RoleHighlights() {
             >
               <div>
                 <div className="flex items-center justify-between mb-4">
-                  <span className="text-3xl">{role.icon}</span>
+                  <span className="p-3 bg-white text-emerald-800 rounded-xl border border-stone-200">{role.icon}</span>
                   <span className="text-[11px] font-bold uppercase tracking-wider text-stone-600 bg-white px-2 py-0.5 rounded border border-stone-200">
                     {role.tag}
                   </span>
@@ -77,7 +78,7 @@ export function RoleHighlights() {
                 <ul className="space-y-2">
                   {role.features.map((f) => (
                     <li key={f} className="text-xs text-stone-700 font-medium flex items-center gap-1.5">
-                      <span className="text-emerald-700 font-bold">✓</span>
+                      <IconCheck className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
                       <span>{f}</span>
                     </li>
                   ))}
@@ -90,4 +91,3 @@ export function RoleHighlights() {
     </section>
   );
 }
-

@@ -10,9 +10,8 @@ import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { formatDualPrice, translateSellerType } from '../../../utils/format';
-import { IconShieldCheck, IconLocation, IconTruck, IconCheck, IconStar } from '../../../components/ui/Icons';
-import { MOCK_PRODUCTS, MOCK_OFFERS, MOCK_SELLERS, MOCK_CATEGORIES } from '../../../data/mockData';
-import { SellerOfferItem } from '../../../types';
+import { IconShieldCheck, IconLocation, IconTruck, IconPlant } from '../../../components/ui/Icons';
+import { MOCK_PRODUCTS, MOCK_OFFERS, MOCK_CATEGORIES } from '../../../data/mockData';
 
 export default function ProductDetailPage() {
   const params = useParams();
@@ -40,11 +39,6 @@ export default function ProductDetailPage() {
   const activeOffer = useMemo(() => {
     return productOffers.find((o) => o.id === selectedOfferId) || productOffers[0]!;
   }, [productOffers, selectedOfferId]);
-
-  // Seller info
-  const seller = useMemo(() => {
-    return MOCK_SELLERS.find((s) => s.id === activeOffer.sellerId) || MOCK_SELLERS[0]!;
-  }, [activeOffer]);
 
   // Quantity input state
   const [quantity, setQuantity] = useState<number>(activeOffer.retailMinQuantity || 1);
@@ -125,16 +119,17 @@ export default function ProductDetailPage() {
                     priority
                   />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-6xl">
-                    🌾
+                  <div className="w-full h-full flex items-center justify-center bg-emerald-50 text-emerald-700">
+                    <IconPlant className="w-16 h-16" aria-hidden="true" />
                   </div>
                 )}
                 <div className="absolute top-4 left-4 flex flex-col gap-2">
                   <span className={`text-xs font-bold px-3 py-1 rounded-md border backdrop-blur-md shadow-xs ${sellerInfo.badgeClass}`}>
                     {sellerInfo.label}
                   </span>
-                  <span className="text-xs bg-stone-900/80 backdrop-blur-md text-white font-bold px-3 py-1 rounded-md">
-                    📍 {activeOffer.originProvince} ({activeOffer.originCity})
+                  <span className="text-xs bg-stone-900/80 backdrop-blur-md text-white font-bold px-3 py-1 rounded-md inline-flex items-center gap-1">
+                  <IconLocation className="w-3.5 h-3.5" aria-hidden="true" />
+                  {activeOffer.originProvince} ({activeOffer.originCity})
                   </span>
                 </div>
               </div>
@@ -205,8 +200,9 @@ export default function ProductDetailPage() {
                           <span className="text-xs font-bold text-stone-900">
                             {offer.sellerName}
                           </span>
-                          <span className="text-xs text-stone-500">
-                            • 📍 {offer.originProvince} ({offer.originCity})
+                          <span className="text-xs text-stone-500 inline-flex items-center gap-1">
+                            <IconLocation className="w-3.5 h-3.5" aria-hidden="true" />
+                            {offer.originProvince} ({offer.originCity})
                           </span>
                         </div>
                         <p className="text-xs text-stone-500 mb-2">
@@ -278,7 +274,7 @@ export default function ProductDetailPage() {
                 </div>
                 {activeOffer.wholesaleMinQuantity && !isWholesale && (
                   <p className="text-[11px] text-amber-800 bg-amber-50 p-2 rounded-lg border border-amber-200">
-                    💡 Astuce grossiste : Commandez <strong>{activeOffer.wholesaleMinQuantity} {activeOffer.unit}s</strong> ou plus pour débloquer le prix de gros à{' '}
+                    Astuce grossiste : Commandez <strong>{activeOffer.wholesaleMinQuantity} {activeOffer.unit}s</strong> ou plus pour débloquer le prix de gros à{' '}
                     <strong>
                       {currency === 'CDF'
                         ? `${activeOffer.wholesalePriceCdf?.toLocaleString('fr-FR')} FC`

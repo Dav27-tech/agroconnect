@@ -7,6 +7,7 @@ import { useCurrency } from '../../context/CurrencyContext';
 import { formatDualPrice, translateSellerType } from '../../utils/format';
 import { SellerOfferItem } from '../../types';
 import { Button } from '../ui/Button';
+import { IconLocation, IconPlant } from '../ui/Icons';
 
 export interface ProductCardProps {
   offer: SellerOfferItem;
@@ -36,8 +37,8 @@ export function ProductCard({ offer }: ProductCardProps) {
               sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 25vw"
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-4xl bg-stone-100">
-              🌾
+            <div className="w-full h-full flex items-center justify-center bg-emerald-50 text-emerald-700">
+              <IconPlant className="w-12 h-12" aria-hidden="true" />
             </div>
           )}
 
@@ -51,8 +52,9 @@ export function ProductCard({ offer }: ProductCardProps) {
           </div>
 
           {/* Badge Province RDC */}
-          <div className="absolute bottom-2.5 left-2.5 bg-stone-900/80 backdrop-blur-md text-white text-[10px] font-bold px-2 py-0.5 rounded-md">
-            📍 {offer.originProvince}
+          <div className="absolute bottom-2.5 left-2.5 bg-stone-900/80 backdrop-blur-md text-white text-[10px] font-bold px-2 py-1 rounded-md inline-flex items-center gap-1">
+            <IconLocation className="w-3 h-3" aria-hidden="true" />
+            {offer.originProvince}
           </div>
         </div>
 
@@ -126,4 +128,3 @@ export function ProductCard({ offer }: ProductCardProps) {
     </div>
   );
 }
-

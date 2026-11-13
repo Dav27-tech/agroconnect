@@ -87,3 +87,11 @@ export const DRC_MOBILE_MONEY_PROVIDERS = [
 
 export type MobileMoneyProviderId = typeof DRC_MOBILE_MONEY_PROVIDERS[number]['id'];
 
+// Configuration du taux de change initial de référence
+export const DRC_EXCHANGE_RATE = {
+  defaultRate: 2850,
+  baseCurrency: 'USD' as const,
+  targetCurrency: 'CDF' as const,
+};
+
+

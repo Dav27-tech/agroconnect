@@ -5,32 +5,32 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { PageHeader } from '../../components/layout/PageHeader';
 import { Button } from '../../components/ui/Button';
-import { IconShieldCheck, IconLocation, IconTruck } from '../../components/ui/Icons';
+import { IconBuilding, IconLocation, IconPlant, IconShieldCheck, IconUser } from '../../components/ui/Icons';
 import { DRC_PROVINCES } from '../../constants/drc';
 
 export default function AboutPage() {
   const pillars = [
     {
       title: 'Intermédiation Neutre & Transparente',
-      icon: '⚖️',
+      icon: <IconShieldCheck className="w-6 h-6" aria-hidden="true" />,
       description:
         'AgroConnect n\'achète, ne possède, ne stocke ni ne revend aucun produit agricole. Chaque agriculteur ou revendeur reste propriétaire exclusif de son stock et fixe souverainement ses prix.',
     },
     {
       title: 'Éradication des Pertes Post-Récolte',
-      icon: '🌱',
+      icon: <IconPlant className="w-6 h-6" aria-hidden="true" />,
       description:
         'En connectant directement les bassins de production ruraux aux acheteurs urbains et industriels par précommandes fermes, nous réduisons le gaspillage alimentaire de nos terroirs.',
     },
     {
       title: 'Sécurisation Monétaire Bi-Devise',
-      icon: '💵',
+      icon: <IconBuilding className="w-6 h-6" aria-hidden="true" />,
       description:
         'Gestion transparente du Franc Congolais (CDF) et du Dollar Américain (USD). Le taux de change est gravé et figé au moment de la transaction, protégeant vendeurs et acheteurs.',
     },
     {
       title: 'Inclusion des Petits Producteurs',
-      icon: '🤝',
+      icon: <IconUser className="w-6 h-6" aria-hidden="true" />,
       description:
         'Paiements certifiés via Mobile Money (M-Pesa, Orange Money, Airtel Money, Afrimoney), accessibles même dans les zones rurales reculées sans compte bancaire classique.',
     },
@@ -90,7 +90,7 @@ export default function AboutPage() {
             {pillars.map((p) => (
               <div key={p.title} className="bg-white p-6 rounded-2xl border border-stone-200 shadow-xs flex flex-col justify-between">
                 <div>
-                  <span className="text-3xl p-3 bg-stone-50 rounded-xl inline-block mb-4">{p.icon}</span>
+                  <span className="p-3 bg-emerald-50 text-emerald-800 rounded-xl inline-flex mb-4">{p.icon}</span>
                   <h4 className="text-base font-bold text-stone-900 mb-2">{p.title}</h4>
                   <p className="text-xs text-stone-600 leading-relaxed">{p.description}</p>
                 </div>
@@ -115,7 +115,10 @@ export default function AboutPage() {
                 key={prov}
                 className="bg-emerald-900/60 text-emerald-200 border border-emerald-800/80 px-3 py-1.5 rounded-lg font-medium"
               >
-                📍 {prov}
+                <span className="inline-flex items-center gap-1">
+                  <IconLocation className="w-3.5 h-3.5" aria-hidden="true" />
+                  {prov}
+                </span>
               </span>
             ))}
           </div>
@@ -146,4 +149,3 @@ export default function AboutPage() {
     </div>
   );
 }
-

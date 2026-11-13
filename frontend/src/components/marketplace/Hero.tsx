@@ -2,9 +2,11 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useCurrency } from '../../context/CurrencyContext';
 import { DRC_PROVINCES } from '../../constants/drc';
+import { IconCheck, IconLocation, IconSearch } from '../ui/Icons';
 
 export function Hero() {
   const { currency, exchangeRate } = useCurrency();
@@ -21,7 +23,7 @@ export function Hero() {
   };
 
   return (
-    <section className="relative bg-gradient-to-b from-emerald-50/60 via-stone-50 to-white pt-12 pb-20 border-b border-stone-200">
+    <section className="relative bg-white pt-10 sm:pt-14 pb-14 sm:pb-20 border-b border-stone-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
           {/* Left Text */}
@@ -33,7 +35,7 @@ export function Hero() {
 
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-stone-900 tracking-tight leading-[1.1] mb-6">
               Connecter l&apos;agriculture congolaise,{' '}
-              <span className="text-emerald-800 underline decoration-orange-500 decoration-wavy decoration-2">
+              <span className="text-emerald-800">
                 du champ à la ville.
               </span>
             </h1>
@@ -48,10 +50,10 @@ export function Hero() {
             {/* Quick Search Form */}
             <form
               onSubmit={handleSearch}
-              className="bg-white p-2.5 rounded-2xl shadow-md border border-stone-200 flex flex-col sm:flex-row gap-2 max-w-xl mb-8"
+              className="bg-white p-2 rounded-2xl shadow-md border border-stone-200 flex flex-col sm:flex-row gap-2 max-w-xl mb-8"
             >
-              <div className="flex-1 flex items-center px-3 gap-2">
-                <span className="text-stone-400">🔍</span>
+              <div className="flex-1 flex items-center px-3 gap-2 min-h-11">
+                <IconSearch className="w-5 h-5 text-stone-400 shrink-0" aria-hidden="true" />
                 <input
                   type="text"
                   placeholder="Manioc doux, maïs, haricot, semences..."
@@ -61,15 +63,15 @@ export function Hero() {
                 />
               </div>
               <div className="h-8 w-[1px] bg-stone-200 hidden sm:block self-center" />
-              <div className="flex items-center px-3 gap-2">
-                <span className="text-stone-400">📍</span>
+              <div className="flex items-center px-3 gap-2 min-h-11">
+                <IconLocation className="w-5 h-5 text-stone-400 shrink-0" aria-hidden="true" />
                 <select
                   value={selectedProvince}
                   onChange={(e) => setSelectedProvince(e.target.value)}
                   className="text-sm text-stone-700 bg-transparent outline-none cursor-pointer"
                 >
                   <option value="">Toutes provinces (26)</option>
-                  {DRC_PROVINCES.slice(0, 10).map((p) => (
+                  {DRC_PROVINCES.map((p) => (
                     <option key={p} value={p}>
                       {p}
                     </option>
@@ -87,15 +89,15 @@ export function Hero() {
             {/* Trust Points */}
             <div className="flex flex-wrap items-center gap-6 text-xs text-stone-600 font-medium">
               <div className="flex items-center gap-2">
-                <span className="text-emerald-700 font-bold">✓</span>
+                <IconCheck className="w-4 h-4 text-emerald-700 shrink-0" />
                 <span>Intermédiaire neutre garanti</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-emerald-700 font-bold">✓</span>
+                <IconCheck className="w-4 h-4 text-emerald-700 shrink-0" />
                 <span>Stock unique partagé (Gros & Détail)</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-emerald-700 font-bold">✓</span>
+                <IconCheck className="w-4 h-4 text-emerald-700 shrink-0" />
                 <span>Taux de change figé par transaction</span>
               </div>
             </div>
@@ -104,6 +106,21 @@ export function Hero() {
           {/* Right Visual Card */}
           <div className="lg:col-span-5">
             <div className="relative bg-white rounded-3xl p-6 shadow-xl border border-stone-200">
+              <div className="ac-hero-photo relative -mx-6 -mt-6 mb-5 h-52 sm:h-60">
+                <Image
+                  src="https://images.unsplash.com/photo-1592982537447-7440770cbfc9?auto=format&fit=crop&q=85&w=1200"
+                  alt="Producteurs agricoles dans un champ en Afrique"
+                  fill
+                  priority
+                  sizes="(max-width: 1024px) 100vw, 42vw"
+                  className="object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-stone-950/75 via-stone-950/10 to-transparent" />
+                <div className="absolute bottom-4 left-5 right-5 text-white">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-white/85">Récoltes locales, commerce direct</span>
+                  <p className="text-xl font-bold mt-1">La terre congolaise à portée de marché</p>
+                </div>
+              </div>
               <div className="flex items-center justify-between pb-4 border-b border-stone-100 mb-5">
                 <div>
                   <span className="text-xs uppercase font-bold text-stone-400 tracking-wider">Aperçu Réel RDC</span>

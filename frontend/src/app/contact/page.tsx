@@ -3,7 +3,6 @@
 import React, { useState } from 'react';
 import { PageHeader } from '../../components/layout/PageHeader';
 import { Input } from '../../components/ui/Input';
-import { Select } from '../../components/ui/Select';
 import { Button } from '../../components/ui/Button';
 import { DRC_PROVINCES } from '../../constants/drc';
 import { IconLocation, IconPhone, IconMail, IconBuilding } from '../../components/ui/Icons';
@@ -219,4 +218,3 @@ export default function ContactPage() {
     </div>
   );
 }
-

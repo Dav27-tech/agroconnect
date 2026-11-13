@@ -1,6 +1,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { PAYMENT_METHODS } from '../../constants/drc';
+import { IconPlant } from '../ui/Icons';
 
 export function Footer() {
   return (
@@ -10,8 +11,8 @@ export function Footer() {
           {/* Brand Col */}
           <div className="lg:col-span-2">
             <Link href="/" className="flex items-center gap-3 mb-4 inline-flex">
-              <div className="w-10 h-10 rounded-lg bg-emerald-700 text-white flex items-center justify-center font-bold text-xl">
-                🌾
+              <div className="w-10 h-10 rounded-lg bg-emerald-700 text-white flex items-center justify-center">
+                <IconPlant className="w-6 h-6" aria-hidden="true" />
               </div>
               <span className="text-2xl font-black text-white">
                 Agro<span className="text-orange-500">Connect</span> RDC

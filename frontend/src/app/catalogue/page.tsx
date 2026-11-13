@@ -1,20 +1,24 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { Suspense, useState, useMemo } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { PageHeader } from '../../components/layout/PageHeader';
 import { ProductCard } from '../../components/marketplace/ProductCard';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
-import { Select } from '../../components/ui/Select';
-import { IconSearch, IconFilter } from '../../components/ui/Icons';
+import { IconCategory, IconSearch, IconFilter } from '../../components/ui/Icons';
 import { MOCK_OFFERS, MOCK_CATEGORIES } from '../../data/mockData';
 import { DRC_PROVINCES } from '../../constants/drc';
 import { SellerType } from '../../types';
 
-export default function CataloguePage() {
+function CatalogueContent() {
+  const searchParams = useSearchParams();
+  const categorySlug = searchParams.get('category');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedCategory, setSelectedCategory] = useState<string>(() =>
+    MOCK_CATEGORIES.find((category) => category.slug === categorySlug)?.name || 'all'
+  );
   const [selectedProvince, setSelectedProvince] = useState<string>('all');
   const [selectedSellerType, setSelectedSellerType] = useState<string>('all');
   const [sortBy, setSortBy] = useState<string>('featured');
@@ -182,7 +186,10 @@ export default function CataloguePage() {
                         : 'text-stone-600 hover:bg-stone-50'
                     }`}
                   >
-                    <span>{cat.icon} {cat.name}</span>
+                    <span className="flex items-center gap-2">
+                      <IconCategory name={cat.icon} className="w-4 h-4" aria-hidden="true" />
+                      {cat.name}
+                    </span>
                     <span className="text-[10px] opacity-75">{cat.itemCount}</span>
                   </button>
                 ))}
@@ -263,7 +270,7 @@ export default function CataloguePage() {
               </div>
             ) : (
               <EmptyState
-                icon="🔍"
+                icon={<IconSearch className="w-7 h-7" aria-hidden="true" />}
                 title="Aucune offre trouvée"
                 description="Aucun produit agricole ne correspond à vos critères de recherche actuels. Essayez de réinitialiser vos filtres ou d'élargir la province sélectionnée."
                 actionText="Réinitialiser tous les filtres"
@@ -277,3 +284,10 @@ export default function CataloguePage() {
   );
 }
 
+export default function CataloguePage() {
+  return (
+    <Suspense fallback={<div className="p-12 text-center text-sm font-semibold text-stone-500">Chargement du catalogue...</div>}>
+      <CatalogueContent />
+    </Suspense>
+  );
+}

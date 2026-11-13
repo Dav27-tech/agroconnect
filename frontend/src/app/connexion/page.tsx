@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
-import { IconPhone, IconShieldCheck } from '../../components/ui/Icons';
+import { IconCheck, IconPhone, IconPlant, IconShieldCheck } from '../../components/ui/Icons';
 
 export default function LoginPage() {
   const [phone, setPhone] = useState('');
@@ -34,8 +34,8 @@ export default function LoginPage() {
     <div className="min-h-screen bg-stone-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <Link href="/" className="flex items-center justify-center gap-2 mb-6">
-          <div className="w-12 h-12 rounded-2xl bg-emerald-800 text-white flex items-center justify-center text-2xl font-bold shadow-sm">
-            🌾
+          <div className="w-12 h-12 rounded-2xl bg-emerald-800 text-white flex items-center justify-center shadow-sm">
+            <IconPlant className="w-7 h-7" aria-hidden="true" />
           </div>
           <span className="text-2xl font-black text-stone-900">
             Agro<span className="text-orange-600">Connect</span>
@@ -53,7 +53,9 @@ export default function LoginPage() {
         <div className="bg-white py-8 px-6 sm:px-10 rounded-3xl border border-stone-200 shadow-lg">
           {success ? (
             <div className="p-6 text-center bg-emerald-50 rounded-2xl border border-emerald-200 space-y-3">
-              <span className="text-4xl">✅</span>
+              <span className="w-12 h-12 mx-auto rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center">
+                <IconCheck className="w-7 h-7" aria-hidden="true" />
+              </span>
               <h3 className="text-lg font-bold text-emerald-950">Connexion Réussie !</h3>
               <p className="text-xs text-emerald-800">
                 Bienvenue sur AgroConnect RDC. Redirection en cours...
@@ -141,4 +143,3 @@ export default function LoginPage() {
     </div>
   );
 }
-

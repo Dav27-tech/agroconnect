@@ -4,7 +4,7 @@ import { PaymentController } from './payment.controller.js';
 const router = Router();
 
 router.post('/checkout', PaymentController.initiateCheckout);
-router.get('/verify/:transactionId', PaymentController.verifyTransaction);
+router.get('/verify/:transactionId', PaymentController.verifyPayment);
 
 export { router as paymentRoutes };
 

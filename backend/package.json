@@ -8,7 +8,9 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
-    "test": "tsc && node test-routes.js",
+    "test": "tsc && node test-routes.js && node test-business-rules.js",
+    "db:migrate": "node scripts/migrate.js",
+    "db:seed": "node scripts/migrate.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio"
@@ -25,6 +27,7 @@
   "license": "ISC",
   "dependencies": {
     "@prisma/client": "^7.10.1",
+    "@prisma/orm-postgres": "^8.0.0-rc.23",
     "cors": "^2.8.6",
     "dotenv": "^18.0.10",
     "express": "^5.3.0",
