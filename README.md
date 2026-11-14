@@ -31,23 +31,39 @@
 
 ---
 
-## 🚀 Démarrage Rapide
+## État du Projet
+
+AgroConnect est actuellement un prototype destiné à valider les workflows métier. Les routes utilisent un store en mémoire et des données de démonstration ; le client Prisma et le schéma PostgreSQL ne sont pas connectés au runtime. Les données sont perdues au redémarrage. Le simulateur de paiement reste en attente et ne déclare jamais un paiement réussi.
+
+Ce dépôt n'est pas prêt pour la production. Les bloqueurs de lancement sont récapitulés dans [docs/DEVELOPMENT_GUIDE.md](docs/DEVELOPMENT_GUIDE.md) et [docs/DATABASE.md](docs/DATABASE.md).
+
+## 🚀 Installation et Démarrage
 
 ### Prérequis
 - **Node.js** >= 20.x
 - **npm** >= 10.x
-- **PostgreSQL** (optionnel lors de l'initialisation, le backend fonctionne avec fallback résilient)
+- **PostgreSQL** : non requis pour les scénarios de démonstration en mémoire, mais une implémentation persistante est obligatoire avant toute mise en production.
 
-### Installation & Lancement
+### Installation
 
 ```bash
-# 1. Cloner ou se placer dans le projet
-cd agroConnect
+npm install --prefix backend
+npm install --prefix frontend
+```
 
-# 2. Lancer le backend (Port 5000)
+Copiez `backend/.env.example` vers `backend/.env`. Sous PowerShell :
+
+```powershell
+Copy-Item backend/.env.example backend/.env
+```
+
+### Lancement
+
+```bash
+# Terminal 1 : backend (port 5000)
 npm run dev:backend
 
-# 3. Dans un second terminal, lancer le frontend (Port 3000)
+# Terminal 2 : frontend (port 3000)
 npm run dev:frontend
 ```
 
@@ -57,7 +73,10 @@ Point de terminaison santé API : [http://localhost:5000/api/health](http://loca
 ### Lancer les Tests de Validation Métier
 
 ```bash
-npm run test:backend
+npm test
+npm run build:backend
+npm run build:frontend
+npm run lint --prefix frontend
 ```
 
 ---
@@ -114,9 +133,11 @@ agroConnect/
 
 ## 📚 Documentation Détaillée
 
-- 📖 [Aperçu du Projet & Vision RDC](file:///d:/projects/agroConnect/docs/PROJECT_OVERVIEW.md)
-- ⚖️ [Règles Métier & Modèle Économique](file:///d:/projects/agroConnect/docs/BUSINESS_RULES.md)
-- 🏛️ [Architecture Système & Décisions Techniques](file:///d:/projects/agroConnect/docs/ARCHITECTURE.md)
-- 🔌 [Frontières d'Intégration Externes (Mobile Money, SMS, Maps)](file:///d:/projects/agroConnect/docs/EXTERNAL_INTEGRATIONS.md)
-- 🛠️ [Guide de Développement & Commandes](file:///d:/projects/agroConnect/docs/DEVELOPMENT_GUIDE.md)
+- [Aperçu du projet](docs/PROJECT_OVERVIEW.md)
+- [Règles métier](docs/BUSINESS_RULES.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Base de données](docs/DATABASE.md)
+- [Plan d'intégration externe](docs/EXTERNAL_INTEGRATIONS.md)
+- [Installation, tests et préproduction](docs/DEVELOPMENT_GUIDE.md)
+- [API OpenAPI](http://localhost:5000/api/v1/docs) après démarrage du backend
 
