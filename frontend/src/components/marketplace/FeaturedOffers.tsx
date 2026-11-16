@@ -2,23 +2,20 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { MOCK_OFFERS } from '../../data/mockData';
-import { useCurrency } from '../../context/CurrencyContext';
 import { ProductCard } from './ProductCard';
 import { IconChevronRight } from '../ui/Icons';
 import { api } from '../../services/api';
 import { SellerOfferItem } from '../../types';
 
 export function FeaturedOffers() {
-  const { currency } = useCurrency();
-  const [offers, setOffers] = useState<SellerOfferItem[]>(() => MOCK_OFFERS.slice(0, 4));
+  const [offers, setOffers] = useState<SellerOfferItem[]>([]);
 
   useEffect(() => {
     let mounted = true;
     async function loadOffers() {
       try {
         const res = await api.offers.list();
-        if (mounted && Array.isArray(res) && res.length > 0) {
+        if (mounted && Array.isArray(res)) {
           setOffers(res.slice(0, 4));
         }
       } catch (err) {
@@ -41,19 +38,20 @@ export function FeaturedOffers() {
               Des récoltes disponibles près de chez vous
             </h2>
             <p className="text-sm text-stone-600 mt-2 max-w-2xl leading-relaxed">
-              Comparez les conditions de vente au détail et en gros, avec des prix en Francs Congolais ou en dollars.
+              Comparez les prix de vente au détail et en gros en Francs Congolais.
             </p>
-          </div>
-          <div className="text-xs text-stone-600 bg-stone-50 px-3.5 py-2.5 rounded-xl border border-stone-200 self-start md:self-auto">
-            Devise affichée : <strong className="text-emerald-800">{currency === 'CDF' ? 'Franc Congolais (CDF)' : 'Dollar américain (USD)'}</strong>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-          {offers.map((offer) => (
-            <ProductCard key={offer.id} offer={offer} />
-          ))}
-        </div>
+        {offers.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+            {offers.map((offer) => (
+              <ProductCard key={offer.id} offer={offer} />
+            ))}
+          </div>
+        ) : (
+          <p className="py-8 text-center text-sm text-stone-500">Aucune offre enregistrée.</p>
+        )}
 
         <div className="mt-8 text-center">
           <Link
