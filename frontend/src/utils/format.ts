@@ -1,31 +1,5 @@
-import { SupportedCurrency } from '../types';
-
-export function formatPrice(
-  amountCdf: number,
-  amountUsd: number,
-  activeCurrency: SupportedCurrency
-): string {
-  if (activeCurrency === 'CDF') {
-    return `${Math.round(amountCdf).toLocaleString('fr-FR')} FC`;
-  }
-  return `${amountUsd.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $`;
-}
-
-export function formatDualPrice(
-  amountCdf: number,
-  amountUsd: number,
-  activeCurrency: SupportedCurrency
-): { primary: string; secondary: string } {
-  if (activeCurrency === 'CDF') {
-    return {
-      primary: `${Math.round(amountCdf).toLocaleString('fr-FR')} FC`,
-      secondary: `(${amountUsd.toFixed(2)} $)`,
-    };
-  }
-  return {
-    primary: `${amountUsd.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $`,
-    secondary: `(${Math.round(amountCdf).toLocaleString('fr-FR')} FC)`,
-  };
+export function formatCdfPrice(amountCdf: number): string {
+  return `${Math.round(amountCdf).toLocaleString('fr-FR')} FC`;
 }
 
 export function translateSellerType(type: 'FARMER' | 'RESELLER' | 'SUPPLIER'): {
