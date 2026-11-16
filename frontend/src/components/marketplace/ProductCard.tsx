@@ -3,8 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useCurrency } from '../../context/CurrencyContext';
-import { formatDualPrice, translateSellerType } from '../../utils/format';
+import { formatCdfPrice, translateSellerType } from '../../utils/format';
 import { SellerOfferItem } from '../../types';
 import { Button } from '../ui/Button';
 import { IconLocation, IconPlant } from '../ui/Icons';
@@ -14,14 +13,10 @@ export interface ProductCardProps {
 }
 
 export function ProductCard({ offer }: ProductCardProps) {
-  const { currency } = useCurrency();
   const sellerInfo = translateSellerType(offer.sellerType);
 
-  const retailPrices = formatDualPrice(offer.retailPriceCdf, offer.retailPriceUsd, currency);
-  const wholesalePrices =
-    offer.wholesalePriceCdf && offer.wholesalePriceUsd
-      ? formatDualPrice(offer.wholesalePriceCdf, offer.wholesalePriceUsd, currency)
-      : null;
+  const retailPrice = formatCdfPrice(offer.retailPriceCdf);
+  const wholesalePrice = offer.wholesalePriceCdf ? formatCdfPrice(offer.wholesalePriceCdf) : null;
 
   return (
     <div className="bg-white rounded-2xl border border-stone-200 p-4 flex flex-col justify-between hover:shadow-xl hover:border-emerald-300 transition duration-200 group">
@@ -93,19 +88,17 @@ export function ProductCard({ offer }: ProductCardProps) {
               Détail (dès {offer.retailMinQuantity}) :
             </span>
             <div className="text-right">
-              <span className="text-base font-black text-stone-900">{retailPrices.primary}</span>
-              <span className="text-[10px] text-stone-400 block">{retailPrices.secondary}</span>
+              <span className="text-base font-black text-stone-900">{retailPrice}</span>
             </div>
           </div>
 
-          {wholesalePrices && offer.wholesaleMinQuantity && (
+          {wholesalePrice && offer.wholesaleMinQuantity && (
             <div className="flex items-baseline justify-between pt-0.5">
               <span className="text-[11px] text-emerald-800 font-bold">
                 Gros (dès {offer.wholesaleMinQuantity}) :
               </span>
               <div className="text-right">
-                <span className="text-sm font-extrabold text-emerald-800">{wholesalePrices.primary}</span>
-                <span className="text-[10px] text-stone-400 block">{wholesalePrices.secondary}</span>
+                <span className="text-sm font-extrabold text-emerald-800">{wholesalePrice}</span>
               </div>
             </div>
           )}
