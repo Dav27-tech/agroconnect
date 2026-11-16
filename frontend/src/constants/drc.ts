@@ -27,8 +27,6 @@ export const DRC_PROVINCES = [
   'Tshuapa',
 ] as const;
 
-export const DEFAULT_EXCHANGE_RATE = 2850; // 1 USD = 2850 CDF
-
 export const DRC_MOBILE_MONEY_PROVIDERS = [
   { id: 'M_PESA', name: 'Vodacom M-Pesa', prefix: ['081', '082', '083'], badge: 'M-Pesa' },
   { id: 'ORANGE_MONEY', name: 'Orange Money', prefix: ['084', '085', '089'], badge: 'Orange Money' },
