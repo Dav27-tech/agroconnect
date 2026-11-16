@@ -49,41 +49,6 @@ export function HowItWorks() {
           ))}
         </div>
 
-        {/* Live Delivery Tracker Simulation */}
-        <div className="mt-16 bg-stone-800 p-6 sm:p-8 rounded-3xl border border-stone-700 max-w-4xl mx-auto">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 border-b border-stone-700 gap-4">
-            <div>
-              <span className="text-xs uppercase font-bold text-stone-400">Simulation Suivi de Fret RDC</span>
-              <h4 className="text-lg font-bold text-white">Bordereau #AGC-TRK-784910</h4>
-              <p className="text-xs text-stone-400">Kikwit (Kwilu) → Limete Résidentiel (Kinshasa)</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-orange-500 animate-ping" />
-              <span className="text-xs font-bold px-3 py-1 bg-orange-500/20 text-orange-400 rounded-full border border-orange-500/30">
-                Statut : EN TRANSIT (RN1)
-              </span>
-            </div>
-          </div>
-
-          <div className="pt-6 grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
-            <div className="p-3 bg-stone-900/60 rounded-xl border border-stone-700/50">
-              <span className="text-stone-400 block mb-1">01. Enregistrement</span>
-              <span className="text-emerald-400 font-bold">✓ Confirmé</span>
-            </div>
-            <div className="p-3 bg-stone-900/60 rounded-xl border border-stone-700/50">
-              <span className="text-stone-400 block mb-1">02. Transporteur</span>
-              <span className="text-emerald-400 font-bold">✓ Assigné</span>
-            </div>
-            <div className="p-3 bg-stone-900/60 rounded-xl border border-stone-700/50">
-              <span className="text-stone-400 block mb-1">03. Enlèvement</span>
-              <span className="text-emerald-400 font-bold">✓ Dépôt Kikwit</span>
-            </div>
-            <div className="p-3 bg-emerald-950/60 rounded-xl border border-emerald-700/60">
-              <span className="text-emerald-300 block mb-1">04. En route RN1</span>
-              <span className="text-white font-bold">Passage Kenge</span>
-            </div>
-          </div>
-        </div>
       </div>
     </section>
   );
