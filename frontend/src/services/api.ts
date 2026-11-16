@@ -17,14 +17,6 @@ import {
   DeliveryStatus,
 } from '../types';
 
-import {
-  MOCK_CATEGORIES,
-  MOCK_PRODUCTS,
-  MOCK_OFFERS,
-  MOCK_SELLERS,
-  MOCK_DELIVERIES,
-} from '../data/mockData';
-
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
 export class ApiError extends Error {
@@ -63,8 +55,18 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     const json = await res.json().catch(() => null);
 
     if (!res.ok) {
+      const details = json?.error?.details;
+      const detailMessages = Array.isArray(details)
+        ? details.flatMap((detail: unknown) => {
+            if (typeof detail !== 'object' || detail === null || !('message' in detail)) return [];
+            const message = detail.message;
+            const path = 'path' in detail && typeof detail.path === 'string' ? detail.path : '';
+            return typeof message === 'string' ? [`${path ? `${path}: ` : ''}${message}`] : [];
+          })
+        : [];
+      const errorMessage = json?.error?.message || json?.message || `Erreur serveur (${res.status})`;
       throw new ApiError(
-        json?.error?.message || json?.message || `Erreur serveur (${res.status})`,
+        detailMessages.length ? `${errorMessage} : ${detailMessages.join(', ')}` : errorMessage,
         res.status,
         json?.error?.code
       );
@@ -87,25 +89,10 @@ export const api = {
   // --------------------------------------------------------------------------
   auth: {
     async login(phoneNumber: string, password: string): Promise<{ user: User; token: string }> {
-      try {
-        return await request<{ user: User; token: string }>('/auth/login', {
-          method: 'POST',
-          body: JSON.stringify({ phoneNumber, password }),
-        });
-      } catch (err) {
-        // En mode démo local si le backend n'est pas démarré
-        if ((err as Error).message.includes('fetch')) {
-          const mockUser: User = {
-            id: 'usr-demo-local',
-            phoneNumber,
-            fullName: 'Utilisateur AgroConnect Démo',
-            roles: ['SELLER', 'BUYER'],
-            sellerId: 'seller-coopak-kikwit',
-          };
-          return { user: mockUser, token: 'demo-jwt-token' };
-        }
-        throw err;
-      }
+      return await request<{ user: User; token: string }>('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ phoneNumber, password }),
+      });
     },
 
     async register(data: {
@@ -132,20 +119,11 @@ export const api = {
   // --------------------------------------------------------------------------
   categories: {
     async list(): Promise<Category[]> {
-      try {
-        return await request<Category[]>('/categories');
-      } catch {
-        return MOCK_CATEGORIES;
-      }
+      return await request<Category[]>('/categories');
     },
 
     async getBySlug(slug: string): Promise<Category & { products?: ProductCatalogItem[] }> {
-      try {
-        return await request<Category & { products?: ProductCatalogItem[] }>(`/categories/${slug}`);
-      } catch {
-        const cat = MOCK_CATEGORIES.find((c) => c.slug === slug || c.id === slug) || MOCK_CATEGORIES[0];
-        return cat;
-      }
+      return await request<Category & { products?: ProductCatalogItem[] }>(`/categories/${slug}`);
     },
   },
 
@@ -154,31 +132,15 @@ export const api = {
   // --------------------------------------------------------------------------
   products: {
     async list(params?: { category?: string; search?: string }): Promise<ProductCatalogItem[]> {
-      try {
-        const searchParams = new URLSearchParams();
-        if (params?.category) searchParams.set('category', params.category);
-        if (params?.search) searchParams.set('search', params.search);
-        const query = searchParams.toString() ? `?${searchParams.toString()}` : '';
-        return await request<ProductCatalogItem[]>(`/products${query}`);
-      } catch {
-        let list = [...MOCK_PRODUCTS];
-        if (params?.category) list = list.filter((p) => p.categoryId === params.category);
-        if (params?.search) list = list.filter((p) => p.name.toLowerCase().includes(params.search!.toLowerCase()));
-        return list;
-      }
+      const searchParams = new URLSearchParams();
+      if (params?.category) searchParams.set('category', params.category);
+      if (params?.search) searchParams.set('search', params.search);
+      const query = searchParams.toString() ? `?${searchParams.toString()}` : '';
+      return await request<ProductCatalogItem[]>(`/products${query}`);
     },
 
     async getBySlug(slug: string): Promise<ProductCatalogItem & { offers: SellerOfferItem[] }> {
-      try {
-        return await request<ProductCatalogItem & { offers: SellerOfferItem[] }>(`/products/${slug}`);
-      } catch {
-        const prod = MOCK_PRODUCTS.find((p) => p.slug === slug || p.id === slug) || MOCK_PRODUCTS[0];
-        const offers = MOCK_OFFERS.filter((o) => o.productId === prod.id || o.productId === prod.slug);
-        return {
-          ...prod,
-          offers: offers.length > 0 ? offers : [MOCK_OFFERS[0]],
-        };
-      }
+      return await request<ProductCatalogItem & { offers: SellerOfferItem[] }>(`/products/${slug}`);
     },
   },
 
@@ -192,27 +154,17 @@ export const api = {
       sellerId?: string;
       search?: string;
     }): Promise<SellerOfferItem[]> {
-      try {
-        const searchParams = new URLSearchParams();
-        if (params?.category) searchParams.set('category', params.category);
-        if (params?.province) searchParams.set('province', params.province);
-        if (params?.sellerId) searchParams.set('sellerId', params.sellerId);
-        if (params?.search) searchParams.set('search', params.search);
-        const query = searchParams.toString() ? `?${searchParams.toString()}` : '';
-        return await request<SellerOfferItem[]>(`/offers${query}`);
-      } catch {
-        return MOCK_OFFERS;
-      }
+      const searchParams = new URLSearchParams();
+      if (params?.category) searchParams.set('category', params.category);
+      if (params?.province) searchParams.set('province', params.province);
+      if (params?.sellerId) searchParams.set('sellerId', params.sellerId);
+      if (params?.search) searchParams.set('search', params.search);
+      const query = searchParams.toString() ? `?${searchParams.toString()}` : '';
+      return await request<SellerOfferItem[]>(`/offers${query}`);
     },
 
     async getById(id: string): Promise<SellerOfferItem & { seller?: SellerProfile }> {
-      try {
-        return await request<SellerOfferItem & { seller?: SellerProfile }>(`/offers/${id}`);
-      } catch {
-        const offer = MOCK_OFFERS.find((o) => o.id === id) || MOCK_OFFERS[0];
-        const seller = MOCK_SELLERS.find((s) => s.id === offer.sellerId);
-        return { ...offer, seller: seller as unknown as SellerProfile };
-      }
+      return await request<SellerOfferItem & { seller?: SellerProfile }>(`/offers/${id}`);
     },
 
     async create(data: Partial<SellerOfferItem>): Promise<SellerOfferItem> {
@@ -235,25 +187,15 @@ export const api = {
   // --------------------------------------------------------------------------
   sellers: {
     async list(params?: { province?: string; type?: string }): Promise<SellerProfile[]> {
-      try {
-        const searchParams = new URLSearchParams();
-        if (params?.province) searchParams.set('province', params.province);
-        if (params?.type) searchParams.set('type', params.type);
-        const query = searchParams.toString() ? `?${searchParams.toString()}` : '';
-        return await request<SellerProfile[]>(`/sellers${query}`);
-      } catch {
-        return MOCK_SELLERS as unknown as SellerProfile[];
-      }
+      const searchParams = new URLSearchParams();
+      if (params?.province) searchParams.set('province', params.province);
+      if (params?.type) searchParams.set('type', params.type);
+      const query = searchParams.toString() ? `?${searchParams.toString()}` : '';
+      return await request<SellerProfile[]>(`/sellers${query}`);
     },
 
     async getById(id: string): Promise<SellerProfile> {
-      try {
-        return await request<SellerProfile>(`/sellers/${id}`);
-      } catch {
-        const seller = MOCK_SELLERS.find((s) => s.id === id) || MOCK_SELLERS[0];
-        const offers = MOCK_OFFERS.filter((o) => o.sellerId === seller.id);
-        return { ...seller, offers } as unknown as SellerProfile;
-      }
+      return await request<SellerProfile>(`/sellers/${id}`);
     },
 
     async createProfile(data: {
@@ -296,6 +238,10 @@ export const api = {
   // COMMANDES & SOUS-COMMANDES
   // --------------------------------------------------------------------------
   orders: {
+    async getMine(): Promise<ParentOrder[]> {
+      return await request<ParentOrder[]>('/orders/mine');
+    },
+
     async create(data: {
       items: Array<{ offerId: string; quantity: number; saleType: SaleType }>;
       currency?: SupportedCurrency;
@@ -305,9 +251,10 @@ export const api = {
       recipientName: string;
       recipientPhone: string;
       deliveryInstructions?: string;
-    }): Promise<ParentOrder> {
+    }, idempotencyKey: string): Promise<ParentOrder> {
       return await request<ParentOrder>('/orders', {
         method: 'POST',
+        headers: { 'Idempotency-Key': idempotencyKey },
         body: JSON.stringify(data),
       });
     },
@@ -333,11 +280,7 @@ export const api = {
   // --------------------------------------------------------------------------
   deliveries: {
     async track(code: string): Promise<DeliveryInfo> {
-      try {
-        return await request<DeliveryInfo>(`/deliveries/track/${code}`);
-      } catch {
-        return MOCK_DELIVERIES as unknown as DeliveryInfo;
-      }
+      return await request<DeliveryInfo>(`/deliveries/track/${code}`);
     },
 
     async updateStatus(
@@ -449,20 +392,9 @@ export const api = {
 
   admin: {
     async getExchangeRate(): Promise<{
-      activeRate: { rate: number; effectiveFrom: string; baseCurrency: string; targetCurrency: string };
+      activeRate: { rate: number; effectiveFrom: string; baseCurrency: string; targetCurrency: string } | null;
     }> {
-      try {
-        return await request('/admin/exchange-rate');
-      } catch {
-        return {
-          activeRate: {
-            rate: 2850,
-            effectiveFrom: new Date().toISOString(),
-            baseCurrency: 'USD',
-            targetCurrency: 'CDF',
-          },
-        };
-      }
+      return await request('/admin/exchange-rate');
     },
   },
 };
