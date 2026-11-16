@@ -1,9 +1,20 @@
-import React from 'react';
+'use client';
+
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { MOCK_CATEGORIES } from '../../data/mockData';
 import { IconCategory, IconChevronRight } from '../ui/Icons';
+import { api } from '../../services/api';
+import { Category } from '../../types';
 
 export function CategoriesSection() {
+  const [categories, setCategories] = useState<Category[]>([]);
+
+  useEffect(() => {
+    api.categories.list().then(setCategories).catch((error) => {
+      console.error('Erreur de chargement des filières:', error);
+    });
+  }, []);
+
   return (
     <section id="catalogue" className="py-16 sm:py-20 bg-stone-50 border-y border-stone-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -27,7 +38,7 @@ export function CategoriesSection() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-          {MOCK_CATEGORIES.map((category) => (
+          {categories.map((category) => (
             <Link
               key={category.id}
               href={`/catalogue?category=${category.slug}`}
@@ -52,6 +63,9 @@ export function CategoriesSection() {
             </Link>
           ))}
         </div>
+        {categories.length === 0 && (
+          <p className="text-center text-sm text-stone-500">Aucune filière enregistrée.</p>
+        )}
       </div>
     </section>
   );
