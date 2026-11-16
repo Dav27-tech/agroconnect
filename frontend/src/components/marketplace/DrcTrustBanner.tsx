@@ -1,5 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
+import { IconCheck } from '../ui/Icons';
 
 export function DrcTrustBanner() {
   return (
@@ -18,9 +19,9 @@ export function DrcTrustBanner() {
               définissez librement vos prix et bénéficiez de notre système de règlement sécurisé par Mobile Money.
             </p>
             <div className="flex flex-wrap gap-4 text-xs font-semibold text-emerald-200">
-              <span className="flex items-center gap-1.5">✓ Aucun frais d&apos;inscription initial</span>
-              <span className="flex items-center gap-1.5">✓ Paiements rapides certifiés</span>
-              <span className="flex items-center gap-1.5">✓ Déploiement dans les 26 provinces</span>
+              <span className="flex items-center gap-1.5"><IconCheck className="w-4 h-4" />Aucun frais d&apos;inscription initial</span>
+              <span className="flex items-center gap-1.5"><IconCheck className="w-4 h-4" />Paiements rapides certifiés</span>
+              <span className="flex items-center gap-1.5"><IconCheck className="w-4 h-4" />Déploiement dans les 26 provinces</span>
             </div>
           </div>
 
