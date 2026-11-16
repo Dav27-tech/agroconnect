@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, startTransition, ReactNode } from 'react';
 import { SellerOfferItem, SaleType, CartCalculationResult } from '../types';
 import { api } from '../services/api';
 
@@ -35,7 +35,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     try {
       const stored = localStorage.getItem('agroconnect_cart');
       if (stored) {
-        setItems(JSON.parse(stored));
+        startTransition(() => setItems(JSON.parse(stored)));
       }
     } catch (e) {
       console.warn('Impossible de charger le panier local :', e);
@@ -75,7 +75,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, [items]);
 
   useEffect(() => {
-    refreshCalculation();
+    startTransition(() => {
+      void refreshCalculation();
+    });
   }, [items, refreshCalculation]);
 
   const addToCart = useCallback((offer: SellerOfferItem, quantity: number, saleType: SaleType) => {
@@ -97,6 +99,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const removeFromCart = useCallback((offerId: string, saleType: SaleType) => {
+    setItems((prev) =>
+      prev.filter((i) => !(i.offerId === offerId && i.saleType === saleType))
+    );
+  }, []);
+
   const updateQuantity = useCallback((offerId: string, quantity: number, saleType: SaleType) => {
     if (quantity <= 0) {
       removeFromCart(offerId, saleType);
@@ -111,13 +119,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         return item;
       })
     );
-  }, []);
-
-  const removeFromCart = useCallback((offerId: string, saleType: SaleType) => {
-    setItems((prev) =>
-      prev.filter((i) => !(i.offerId === offerId && i.saleType === saleType))
-    );
-  }, []);
+  }, [removeFromCart]);
 
   const clearCart = useCallback(() => {
     setItems([]);
