@@ -110,6 +110,23 @@ export function IconPhone({ className = 'w-5 h-5', ...props }: IconProps) {
   );
 }
 
+export function IconEye({ className = 'w-5 h-5', ...props }: IconProps) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.25 12s3.25-6.75 9.75-6.75S21.75 12 21.75 12 18.5 18.75 12 18.75 2.25 12 2.25 12Z" />
+      <circle cx="12" cy="12" r="3" strokeWidth={2} />
+    </svg>
+  );
+}
+
+export function IconEyeOff({ className = 'w-5 h-5', ...props }: IconProps) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m3 3 18 18M10.58 10.58a2 2 0 0 0 2.84 2.84M9.88 5.09A10.94 10.94 0 0 1 12 4.5c5.5 0 9.5 7.5 9.5 7.5a15.7 15.7 0 0 1-3.05 3.64M6.61 6.61C3.45 8.6 2 12 2 12s4 7.5 10 7.5a10.7 10.7 0 0 0 2.62-.33" />
+    </svg>
+  );
+}
+
 export function IconMail({ className = 'w-5 h-5', ...props }: IconProps) {
   return (
     <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" {...props}>
