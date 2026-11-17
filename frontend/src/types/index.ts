@@ -1,6 +1,6 @@
-export type SupportedCurrency = 'CDF' | 'USD';
+export type SupportedCurrency = 'CDF';
 
-export type UserRole = 'BUYER' | 'SELLER' | 'DELIVERY_PROVIDER' | 'DELIVERY_PERSON' | 'ADMIN';
+export type UserRole = 'BUYER' | 'SELLER' | 'ADMIN';
 
 export type SellerType = 'FARMER' | 'RESELLER' | 'SUPPLIER';
 
@@ -33,22 +33,12 @@ export type SubOrderStatus =
   | 'REJECTED'
   | 'CANCELLED';
 
-export type DeliveryStatus =
-  | 'PENDING'
-  | 'ASSIGNED'
-  | 'PICKED_UP'
-  | 'IN_TRANSIT'
-  | 'ARRIVED'
-  | 'DELIVERED'
-  | 'FAILED'
-  | 'CANCELLED';
-
 export interface User {
   id: string;
   phoneNumber: string;
   fullName: string;
   roles: UserRole[];
-  email?: string;
+  email: string;
   sellerId?: string;
   preferredLang?: string;
 }
@@ -74,8 +64,6 @@ export interface ProductCatalogItem {
   offersCount: number;
   minPriceCdf?: number | null;
   maxPriceCdf?: number | null;
-  minPriceUsd?: number | null;
-  maxPriceUsd?: number | null;
 }
 
 export interface SellerOfferItem {
@@ -91,10 +79,8 @@ export interface SellerOfferItem {
   isAvailable: boolean;
   isFeatured?: boolean;
   retailPriceCdf: number;
-  retailPriceUsd: number;
   retailMinQuantity: number;
   wholesalePriceCdf?: number;
-  wholesalePriceUsd?: number;
   wholesaleMinQuantity?: number;
   servicesOffered: string[];
   qualityGrade: string;
@@ -137,7 +123,6 @@ export interface SellerService {
   title: string;
   description?: string;
   extraFeeCdf: number;
-  extraFeeUsd: number;
   isActive: boolean;
 }
 
@@ -162,9 +147,7 @@ export interface CartCalculationItem {
   quantity: number;
   saleType: SaleType;
   unitPriceCdf: number;
-  unitPriceUsd: number;
   subtotalCdf: number;
-  subtotalUsd: number;
   availableStock: number;
   isStockSufficient: boolean;
 }
@@ -174,7 +157,6 @@ export interface CartSellerGroup {
   sellerName: string;
   items: CartCalculationItem[];
   sellerSubtotalCdf: number;
-  sellerSubtotalUsd: number;
 }
 
 export interface CartCalculationResult {
@@ -182,10 +164,8 @@ export interface CartCalculationResult {
   distinctSellersCount: number;
   totalItemsCount: number;
   hasStockShortage: boolean;
-  exchangeRateSnapshot: number;
   totals: {
     totalCdf: number;
-    totalUsd: number;
   };
 }
 
@@ -197,9 +177,7 @@ export interface OrderItem {
   saleType: SaleType;
   quantity: number;
   unitPriceCdf: number;
-  unitPriceUsd: number;
   subtotalCdf: number;
-  subtotalUsd: number;
 }
 
 export interface SubOrder {
@@ -210,15 +188,10 @@ export interface SubOrder {
   sellerName: string;
   status: SubOrderStatus;
   subtotalCdf: number;
-  subtotalUsd: number;
   commissionRate: number;
   commissionAmountCdf: number;
-  commissionAmountUsd: number;
   payoutAmountCdf: number;
-  payoutAmountUsd: number;
-  deliveryId: string;
   items?: OrderItem[];
-  delivery?: DeliveryInfo;
   createdAt?: string;
 }
 
@@ -227,14 +200,10 @@ export interface ParentOrder {
   orderNumber: string;
   buyerId: string;
   status: ParentOrderStatus;
-  currency: SupportedCurrency;
-  exchangeRateSnapshot: number;
+  currency: 'CDF';
   totalItemsCdf: number;
-  totalItemsUsd: number;
   deliveryFeeCdf: number;
-  deliveryFeeUsd: number;
   totalAmountCdf: number;
-  totalAmountUsd: number;
   deliveryProvince: string;
   deliveryCity: string;
   deliveryCommune?: string;
@@ -244,49 +213,4 @@ export interface ParentOrder {
   deliveryInstructions?: string;
   createdAt: string;
   subOrders: SubOrder[];
-}
-
-export interface DeliveryStatusEvent {
-  id: string;
-  deliveryId: string;
-  status: DeliveryStatus;
-  notes?: string;
-  location?: string;
-  recordedBy?: string;
-  createdAt: string;
-}
-
-export interface DeliveryInfo {
-  id: string;
-  trackingCode: string;
-  subOrderId: string;
-  subOrderNumber?: string;
-  sellerName?: string;
-  status: DeliveryStatus;
-  origin: {
-    province: string;
-    city: string;
-    address: string;
-  };
-  destination: {
-    province: string;
-    city: string;
-    address: string;
-  };
-  courier?: {
-    companyName?: string;
-    vehicleType?: string;
-    plateNumber?: string;
-    operatingArea?: string;
-  } | null;
-  estimatedDeliveryAt?: string;
-  deliveredAt?: string;
-  statusHistory: DeliveryStatusEvent[];
-}
-
-export interface ExchangeRateInfo {
-  rate: number; // 1 USD = X CDF
-  baseCurrency: 'USD';
-  targetCurrency: 'CDF';
-  effectiveDate: string;
 }
