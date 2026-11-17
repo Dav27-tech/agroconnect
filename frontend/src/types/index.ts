@@ -89,6 +89,7 @@ export interface SellerOfferItem {
   unit: string;
   stockQuantity: number;
   isAvailable: boolean;
+  isFeatured?: boolean;
   retailPriceCdf: number;
   retailPriceUsd: number;
   retailMinQuantity: number;
