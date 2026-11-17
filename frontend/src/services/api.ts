@@ -8,13 +8,11 @@ import {
   CartCalculationResult,
   ParentOrder,
   SubOrder,
-  DeliveryInfo,
   User,
   SupportedCurrency,
   SaleType,
   StockMovementType,
   SubOrderStatus,
-  DeliveryStatus,
 } from '../types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
@@ -34,8 +32,9 @@ export class ApiError extends Error {
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const url = `${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
 
+  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
     ...(options.headers as Record<string, string>),
   };
 
@@ -88,10 +87,10 @@ export const api = {
   // AUTHENTIFICATION & UTILISATEURS
   // --------------------------------------------------------------------------
   auth: {
-    async login(phoneNumber: string, password: string): Promise<{ user: User; token: string }> {
+    async login(email: string, password: string): Promise<{ user: User; token: string }> {
       return await request<{ user: User; token: string }>('/auth/login', {
         method: 'POST',
-        body: JSON.stringify({ phoneNumber, password }),
+        body: JSON.stringify({ email, password }),
       });
     },
 
@@ -99,9 +98,10 @@ export const api = {
       phoneNumber: string;
       fullName: string;
       password: string;
-      email?: string;
-      roles?: string[];
-      role?: string;
+      email: string;
+      role: 'BUYER' | 'SELLER';
+      province?: string;
+      city?: string;
     }): Promise<{ user: User; token: string }> {
       return await request<{ user: User; token: string }>('/auth/register', {
         method: 'POST',
@@ -153,12 +153,14 @@ export const api = {
       province?: string;
       sellerId?: string;
       search?: string;
+      featured?: boolean;
     }): Promise<SellerOfferItem[]> {
       const searchParams = new URLSearchParams();
       if (params?.category) searchParams.set('category', params.category);
       if (params?.province) searchParams.set('province', params.province);
       if (params?.sellerId) searchParams.set('sellerId', params.sellerId);
       if (params?.search) searchParams.set('search', params.search);
+      if (params?.featured) searchParams.set('featured', 'true');
       const query = searchParams.toString() ? `?${searchParams.toString()}` : '';
       return await request<SellerOfferItem[]>(`/offers${query}`);
     },
@@ -172,6 +174,16 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(data),
       });
+    },
+
+    async uploadImage(file: File): Promise<string> {
+      const body = new FormData();
+      body.append('image', file);
+      const result = await request<{ imageUrl: string }>('/offers/image', {
+        method: 'POST',
+        body,
+      });
+      return new URL(result.imageUrl, new URL(API_BASE_URL).origin).toString();
     },
 
     async update(id: string, data: Partial<SellerOfferItem>): Promise<SellerOfferItem> {
@@ -278,24 +290,6 @@ export const api = {
   // --------------------------------------------------------------------------
   // LIVRAISON & TRAÇABILITÉ
   // --------------------------------------------------------------------------
-  deliveries: {
-    async track(code: string): Promise<DeliveryInfo> {
-      return await request<DeliveryInfo>(`/deliveries/track/${code}`);
-    },
-
-    async updateStatus(
-      deliveryId: string,
-      status: DeliveryStatus,
-      location?: string,
-      notes?: string
-    ): Promise<DeliveryInfo> {
-      return await request<DeliveryInfo>(`/deliveries/${deliveryId}/status`, {
-        method: 'PATCH',
-        body: JSON.stringify({ status, location, notes }),
-      });
-    },
-  },
-
   // --------------------------------------------------------------------------
   // GESTION DES STOCKS & INVENTAIRE VENDEUR
   // --------------------------------------------------------------------------
@@ -348,7 +342,6 @@ export const api = {
       title: string;
       description?: string;
       extraFeeCdf?: number;
-      extraFeeUsd?: number;
     }): Promise<SellerService> {
       return await request('/seller-services', {
         method: 'POST',
@@ -358,7 +351,7 @@ export const api = {
   },
 
   // --------------------------------------------------------------------------
-  // FINANCE & TAUX DE CHANGE
+  // FINANCE
   // --------------------------------------------------------------------------
   finance: {
     async getSellerFinancials(sellerId: string): Promise<{
@@ -366,22 +359,16 @@ export const api = {
       businessName: string;
       summary: {
         grossSalesCdf: number;
-        grossSalesUsd: number;
         commissionsPaidCdf: number;
-        commissionsPaidUsd: number;
         netEarningsCdf: number;
-        netEarningsUsd: number;
       };
       records: Array<{
         id: string;
         subOrderId: string;
         grossAmountCdf: number;
-        grossAmountUsd: number;
         commissionRate: number;
         commissionAmountCdf: number;
-        commissionAmountUsd: number;
         sellerEarningsCdf: number;
-        sellerEarningsUsd: number;
         status: string;
         recordedAt: string;
       }>;
@@ -391,11 +378,39 @@ export const api = {
   },
 
   admin: {
-    async getExchangeRate(): Promise<{
-      activeRate: { rate: number; effectiveFrom: string; baseCurrency: string; targetCurrency: string } | null;
+    async getStats(): Promise<{
+      usersCount: number;
+      activeSellersCount: number;
+      catalogueProductsCount: number;
+      activeOffersCount: number;
+      parentOrdersCount: number;
+      subOrdersCount: number;
     }> {
-      return await request('/admin/exchange-rate');
+      return await request('/admin/stats');
     },
+
+    async listSellerProfiles(status = 'PENDING'): Promise<Array<{
+      id: string;
+      fullName: string;
+      phoneNumber: string;
+      email?: string | null;
+      sellerType: string;
+      businessName: string;
+      province: string;
+      city: string;
+      address?: string | null;
+      verificationStatus: string;
+    }>> {
+      return await request(`/admin/seller-profiles?status=${encodeURIComponent(status)}`);
+    },
+
+    async updateSellerVerification(sellerId: string, status: 'UNDER_REVIEW' | 'VERIFIED' | 'REJECTED') {
+      return await request(`/admin/seller-profiles/${sellerId}/verification`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status }),
+      });
+    },
+
   },
 };
 
