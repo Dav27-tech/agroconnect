@@ -13,6 +13,7 @@ export interface CartItemState {
 
 interface CartContextType {
   items: CartItemState[];
+  isCartHydrated: boolean;
   calculation: CartCalculationResult | null;
   isLoadingCalculation: boolean;
   addToCart: (offer: SellerOfferItem, quantity: number, saleType: SaleType) => void;
@@ -27,29 +28,34 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItemState[]>([]);
+  const [isCartHydrated, setIsCartHydrated] = useState(false);
   const [calculation, setCalculation] = useState<CartCalculationResult | null>(null);
   const [isLoadingCalculation, setIsLoadingCalculation] = useState<boolean>(false);
 
   // Charger le panier stocké en local au montage
   useEffect(() => {
     try {
-      const stored = localStorage.getItem('agroconnect_cart');
+      const stored = sessionStorage.getItem('agroconnect_cart') || localStorage.getItem('agroconnect_cart');
       if (stored) {
-        startTransition(() => setItems(JSON.parse(stored)));
+        setItems(JSON.parse(stored));
       }
     } catch (e) {
-      console.warn('Impossible de charger le panier local :', e);
+      console.warn('Impossible de charger le panier de la session :', e);
+    } finally {
+      setIsCartHydrated(true);
     }
   }, []);
 
-  // Sauvegarder dans le localStorage à chaque modification
+  // Ne pas remplacer le panier enregistré par le tableau vide avant la fin de son chargement.
   useEffect(() => {
+    if (!isCartHydrated) return;
     try {
-      localStorage.setItem('agroconnect_cart', JSON.stringify(items));
+      sessionStorage.setItem('agroconnect_cart', JSON.stringify(items));
+      localStorage.removeItem('agroconnect_cart');
     } catch (e) {
-      console.warn('Impossible de sauvegarder le panier local :', e);
+      console.warn('Impossible de sauvegarder le panier de la session :', e);
     }
-  }, [items]);
+  }, [items, isCartHydrated]);
 
   // Recalculer le panier via le backend (règle : ne pas faire de calcul financier côté client)
   const refreshCalculation = useCallback(async () => {
@@ -124,6 +130,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const clearCart = useCallback(() => {
     setItems([]);
     setCalculation(null);
+    sessionStorage.removeItem('agroconnect_cart');
     localStorage.removeItem('agroconnect_cart');
   }, []);
 
@@ -133,6 +140,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     <CartContext.Provider
       value={{
         items,
+        isCartHydrated,
         calculation,
         isLoadingCalculation,
         addToCart,
