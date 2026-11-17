@@ -6,12 +6,7 @@
 
 ## 🇨🇩 Vision du Projet
 
-**AgroConnect** est une plateforme intermédiaire de confiance connectant l'écosystème agro-alimentaire congolais à travers ses 26 provinces :
-- **Agriculteurs & Producteurs :** Vente directe de leur production sans intermédiaires prédateurs.
-- **Revendeurs & Grossistes :** Achat indépendant, redistribution et services à valeur ajoutée (conditionnement, tri, livraison express).
-- **Fournisseurs d'Intrants :** Distribution de semences certifiées, engrais, fertilisants et matériel agricole.
-- **Acheteurs Particuliers et Professionnels (B2B / B2C) :** Commande multi-vendeurs avec paiement unifié et traçabilité.
-- **Transporteurs & Livreurs :** Prise en charge logistique et suivi d'acheminement de fret.
+**AgroConnect** connecte les agriculteurs vendeurs et les acheteurs à travers les 26 provinces de la RDC. La plateforme distingue trois rôles : administrateur, acheteur et vendeur-agriculteur. L'inscription acheteur/vendeur et la connexion utilisent une adresse e-mail obligatoire.
 
 > [!IMPORTANT]
 > **Règle commerciale fondamentale :** AgroConnect est **strictement un intermédiaire technique et financier**. AgroConnect n'achète, ne possède, ne stocke ni ne revend aucun produit agricole. Chaque vendeur gère sa propre activité commerciale, ses stocks et ses prix.
@@ -27,7 +22,7 @@
 | **Base de Données** | PostgreSQL, Prisma ORM |
 | **Monétaire & Calculs** | Arithmétique d'entiers à échelle fixe (`BigInt`), sans virgule flottante JS |
 | **Langue** | Interface et API intégralement en **Français** |
-| **Devises** | Franc Congolais (`CDF / FC`) et Dollar Américain (`USD / $`) |
+| **Devise** | Franc Congolais uniquement (`CDF / FC`), sans taux de change |
 
 ---
 
@@ -96,7 +91,7 @@ agroConnect/
 │   │   └── modules/          # 15 Domaines métiers modulaires
 │   │       ├── auth/         # Inscription & Connexion sécurisée
 │   │       ├── users/        # Gestion profils & rôles
-│   │       ├── sellers/      # Agriculteurs, Revendeurs, Fournisseurs
+│   │       ├── sellers/      # Profils vendeurs-agriculteurs
 │   │       ├── categories/   # Filières agricoles congolaises
 │   │       ├── products/     # Catalogue commun des produits
 │   │       ├── offers/       # Offres vendeurs (Prix gros/détail, stock)
@@ -105,19 +100,19 @@ agroConnect/
 │   │       ├── cart/         # Panier multi-vendeurs
 │   │       ├── orders/       # Commande parent + sous-commandes
 │   │       ├── payments/     # Vérification backend stricte
-│   │       ├── deliveries/   # Suivi logistique indépendant (8 statuts)
+│   │       ├── deliveries/   # Opérations logistiques internes (pas de suivi public)
 │   │       ├── notifications/# Notifications multi-canaux
 │   │       ├── finance/      # Commissions et reversements vendeurs
-│   │       └── admin/        # Gestion taux de change et pilotage
+│   │       └── admin/        # Pilotage et gouvernance
 │   ├── app.ts                # Application Express
 │   └── server.ts             # Démarrage & arrêt gracieux
 ├── frontend/                 # Application Next.js App Router
 │   ├── src/
 │   │   ├── app/              # Routes, Layout et Styles Tailwind
 │   │   ├── components/       # Composants réutilisables
-│   │   │   ├── layout/       # Navbar, Footer avec switcher devise
+│   │   │   ├── layout/       # Navbar, Footer
 │   │   │   └── marketplace/  # Hero, Rôles, Catalogue, Offres, Fret
-│   │   ├── context/          # Contexte de devise globale (CDF / USD)
+│   │   ├── context/          # Authentification et panier de session
 │   │   ├── constants/        # Provinces RDC, opérateurs Mobile Money
 │   │   ├── types/            # Types TypeScript partagés
 │   │   └── utils/            # Formatage monétaire sécurisé
