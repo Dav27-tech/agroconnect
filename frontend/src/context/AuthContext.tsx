@@ -11,14 +11,15 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isSeller: boolean;
   isAdmin: boolean;
-  login: (phoneNumber: string, pass: string) => Promise<void>;
+  login: (email: string, pass: string) => Promise<User>;
   register: (data: {
     phoneNumber: string;
     fullName: string;
     password: string;
-    email?: string;
-    roles?: string[];
-    role?: string;
+    email: string;
+    role: 'BUYER' | 'SELLER';
+    province?: string;
+    city?: string;
   }) => Promise<void>;
   logout: () => void;
   hasRole: (role: UserRole) => boolean;
@@ -57,13 +58,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     hydrate();
   }, []);
 
-  const login = useCallback(async (phoneNumber: string, pass: string) => {
+  const login = useCallback(async (email: string, pass: string) => {
     setIsLoading(true);
     try {
-      const res = await api.auth.login(phoneNumber, pass);
+      const res = await api.auth.login(email, pass);
       setUser(res.user);
       setToken(res.token);
       localStorage.setItem('agroconnect_token', res.token);
+      return res.user;
     } finally {
       setIsLoading(false);
     }
@@ -73,9 +75,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     phoneNumber: string;
     fullName: string;
     password: string;
-    email?: string;
-    roles?: string[];
-    role?: string;
+    email: string;
+    role: 'BUYER' | 'SELLER';
+    province?: string;
+    city?: string;
   }) => {
     setIsLoading(true);
     try {
@@ -93,6 +96,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setToken(null);
     localStorage.removeItem('agroconnect_token');
   }, []);
+
+  useEffect(() => {
+    if (!token) return;
+
+    try {
+      const encodedPayload = token.split('.')[1];
+      if (!encodedPayload) throw new Error('Jeton invalide');
+      const base64Payload = encodedPayload.replace(/-/g, '+').replace(/_/g, '/');
+      const payload = JSON.parse(atob(base64Payload.padEnd(Math.ceil(base64Payload.length / 4) * 4, '='))) as { exp?: number };
+      if (typeof payload.exp !== 'number' || !Number.isFinite(payload.exp)) {
+        throw new Error('Expiration de session invalide');
+      }
+
+      const remainingTime = payload.exp * 1000 - Date.now();
+      if (remainingTime <= 0) {
+        logout();
+        return;
+      }
+
+      const timeoutId = window.setTimeout(logout, remainingTime);
+      return () => window.clearTimeout(timeoutId);
+    } catch (error) {
+      console.warn('Impossible de vérifier l’expiration de la session :', error);
+      logout();
+    }
+  }, [token, logout]);
 
   const hasRole = useCallback(
     (role: UserRole): boolean => {
