@@ -1,83 +1,83 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useParams } from 'next/navigation';
-import { useCurrency } from '../../../context/CurrencyContext';
 import { useCart } from '../../../context/CartContext';
+import { useAuth } from '../../../context/AuthContext';
 import { PageHeader } from '../../../components/layout/PageHeader';
 import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
 import { EmptyState } from '../../../components/ui/EmptyState';
-import { formatDualPrice, translateSellerType } from '../../../utils/format';
-import { IconShieldCheck, IconLocation, IconTruck, IconPlant } from '../../../components/ui/Icons';
-import { MOCK_PRODUCTS, MOCK_OFFERS, MOCK_CATEGORIES } from '../../../data/mockData';
+import { formatCdfPrice, translateSellerType } from '../../../utils/format';
+import { IconCheck, IconShieldCheck, IconLocation, IconTruck, IconPlant } from '../../../components/ui/Icons';
+import { api } from '../../../services/api';
+import { ProductCatalogItem, SellerOfferItem } from '../../../types';
 
 export default function ProductDetailPage() {
   const params = useParams();
   const slug = params?.slug as string;
-  const { currency } = useCurrency();
 
-  // Find product by id or slug
-  const product = useMemo(() => {
-    return (
-      MOCK_PRODUCTS.find((p) => p.slug === slug || p.id === slug) ||
-      MOCK_PRODUCTS[0] // Fallback
-    );
+  const [product, setProduct] = useState<ProductCatalogItem | null>(null);
+  const [productOffers, setProductOffers] = useState<SellerOfferItem[]>([]);
+  const [selectedOfferId, setSelectedOfferId] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [quantity, setQuantity] = useState(1);
+  const [addedToCart, setAddedToCart] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    api.products.getBySlug(slug).then((result) => {
+      if (!mounted) return;
+      setProduct(result);
+      setProductOffers(result.offers);
+      setSelectedOfferId(result.offers[0]?.id || '');
+      setQuantity(result.offers[0]?.retailMinQuantity || 1);
+    }).catch((error) => {
+      console.error('Erreur de chargement du produit:', error);
+      if (mounted) setProduct(null);
+    }).finally(() => {
+      if (mounted) setIsLoading(false);
+    });
+    return () => {
+      mounted = false;
+    };
   }, [slug]);
 
-  // Find all seller offers for this product
-  const productOffers = useMemo(() => {
-    const list = MOCK_OFFERS.filter(
-      (o) => o.productId === product.id || o.productId === product.slug
-    );
-    return list.length > 0 ? list : [MOCK_OFFERS[0]];
-  }, [product]);
-
-  // Selected active offer (defaults to first offer)
-  const [selectedOfferId, setSelectedOfferId] = useState<string>(productOffers[0]?.id || '');
-  const activeOffer = useMemo(() => {
-    return productOffers.find((o) => o.id === selectedOfferId) || productOffers[0]!;
-  }, [productOffers, selectedOfferId]);
-
-  // Quantity input state
-  const [quantity, setQuantity] = useState<number>(activeOffer.retailMinQuantity || 1);
-  const [addedToCart, setAddedToCart] = useState<boolean>(false);
+  const activeOffer = productOffers.find((offer) => offer.id === selectedOfferId) || productOffers[0];
 
   // Check if wholesale pricing applies
-  const isWholesale = Boolean(
-    activeOffer.wholesaleMinQuantity && quantity >= activeOffer.wholesaleMinQuantity
-  );
+  const isWholesale = Boolean(activeOffer?.wholesaleMinQuantity && quantity >= activeOffer.wholesaleMinQuantity);
 
-  const unitPriceCdf = isWholesale && activeOffer.wholesalePriceCdf
-    ? activeOffer.wholesalePriceCdf
-    : activeOffer.retailPriceCdf;
-
-  const unitPriceUsd = isWholesale && activeOffer.wholesalePriceUsd
-    ? activeOffer.wholesalePriceUsd
-    : activeOffer.retailPriceUsd;
+  const unitPriceCdf = activeOffer
+    ? isWholesale && activeOffer.wholesalePriceCdf
+      ? activeOffer.wholesalePriceCdf
+      : activeOffer.retailPriceCdf
+    : 0;
 
   const totalCdf = unitPriceCdf * quantity;
-  const totalUsd = unitPriceUsd * quantity;
+  const unitPrice = formatCdfPrice(unitPriceCdf);
+  const totalPrice = formatCdfPrice(totalCdf);
 
-  const dualUnitPrices = formatDualPrice(unitPriceCdf, unitPriceUsd, currency);
-  const dualTotalPrices = formatDualPrice(totalCdf, totalUsd, currency);
-
-  const sellerInfo = translateSellerType(activeOffer.sellerType);
+  const sellerInfo = activeOffer ? translateSellerType(activeOffer.sellerType) : null;
 
   const { addToCart } = useCart();
+  const { user, isAdmin, isLoading: isAuthLoading } = useAuth();
+  const isOwnOffer = Boolean(user?.sellerId && activeOffer?.sellerId === user.sellerId);
 
   const handleAddToCart = () => {
+    if (!activeOffer || isAdmin || isOwnOffer) return;
     addToCart(activeOffer, quantity, isWholesale ? 'WHOLESALE' : 'RETAIL');
     setAddedToCart(true);
     setTimeout(() => setAddedToCart(false), 3000);
   };
 
-  // Category info
-  const category = useMemo(() => {
-    return MOCK_CATEGORIES.find((c) => c.id === product?.categoryId);
-  }, [product]);
+  const categoryName = product?.categoryName;
+
+  if (isLoading) {
+    return <p className="p-12 text-center text-sm text-stone-500">Chargement du produit...</p>;
+  }
 
   if (!product) {
     return (
@@ -90,11 +90,22 @@ export default function ProductDetailPage() {
     );
   }
 
+  if (!activeOffer || !sellerInfo) {
+    return (
+      <EmptyState
+        title="Aucune offre disponible"
+        description="Ce produit existe dans la base, mais aucune offre vendeur n’y est actuellement associée."
+        actionText="Retourner au catalogue"
+        actionHref="/catalogue"
+      />
+    );
+  }
+
   return (
     <div className="bg-stone-50 min-h-screen pb-20">
       <PageHeader
         title={product.name}
-        subtitle={`${category?.name || product.categoryName || 'Filière Agricole'} • Nom scientifique : ${product.scientificName || 'Plantae'}`}
+        subtitle={`${categoryName || 'Filière Agricole'} • ${product.scientificName || ''}`}
         breadcrumbs={[
           { label: 'Accueil', href: '/' },
           { label: 'Catalogue', href: '/catalogue' },
@@ -119,6 +130,7 @@ export default function ProductDetailPage() {
                     src={activeOffer.imageUrl}
                     alt={activeOffer.productName}
                     fill
+                    unoptimized
                     className="object-cover"
                     priority
                   />
@@ -181,10 +193,8 @@ export default function ProductDetailPage() {
                 {productOffers.map((offer) => {
                   const sInfo = translateSellerType(offer.sellerType);
                   const isSelected = offer.id === activeOffer.id;
-                  const dualR = formatDualPrice(offer.retailPriceCdf, offer.retailPriceUsd, currency);
-                  const dualW = offer.wholesalePriceCdf && offer.wholesalePriceUsd
-                    ? formatDualPrice(offer.wholesalePriceCdf, offer.wholesalePriceUsd, currency)
-                    : null;
+                  const retailPrice = formatCdfPrice(offer.retailPriceCdf);
+                  const wholesalePrice = offer.wholesalePriceCdf ? formatCdfPrice(offer.wholesalePriceCdf) : null;
 
                   return (
                     <div
@@ -216,7 +226,7 @@ export default function ProductDetailPage() {
                           <div className="flex flex-wrap gap-1">
                             {offer.servicesOffered.map((srv) => (
                               <span key={srv} className="text-[10px] bg-stone-100 text-stone-600 px-1.5 py-0.5 rounded font-medium">
-                                ✓ {srv}
+                                <IconCheck className="w-3 h-3" aria-hidden="true" /> {srv}
                               </span>
                             ))}
                           </div>
@@ -224,11 +234,11 @@ export default function ProductDetailPage() {
                       </div>
 
                       <div className="text-left sm:text-right shrink-0">
-                        <span className="text-[11px] text-stone-500 block">Détail :</span>
-                        <span className="text-lg font-black text-stone-900">{dualR.primary}</span>
-                        {dualW && (
+                        <span className="text-[11px] text-stone-500 block">Prix unitaire :</span>
+                        <span className="text-lg font-black text-stone-900">{retailPrice}</span>
+                        {wholesalePrice && (
                           <span className="text-xs font-bold text-emerald-800 block">
-                            Gros : {dualW.primary}
+                            Prix quantité : {wholesalePrice}
                           </span>
                         )}
                         <Button
@@ -250,11 +260,11 @@ export default function ProductDetailPage() {
           <div className="lg:col-span-5">
             <div className="bg-white p-6 sm:p-8 rounded-3xl border border-stone-200 sticky top-28 shadow-lg">
               <span className="text-xs font-bold uppercase tracking-wider text-orange-700 bg-orange-50 px-3 py-1 rounded-full border border-orange-200 mb-4 inline-block">
-                Calculateur de Commande
+                {isAdmin ? 'Détail de l’offre' : 'Calculateur de Commande'}
               </span>
 
               <h2 className="text-xl font-bold text-stone-900 mb-1">
-                Acheter auprès de : {activeOffer.sellerName}
+                {isAdmin ? `Offre de ${activeOffer.sellerName}` : `Acheter auprès de : ${activeOffer.sellerName}`}
               </h2>
               <p className="text-xs text-stone-500 mb-6 flex items-center gap-1">
                 <IconLocation className="w-3.5 h-3.5 text-stone-400" />
@@ -266,29 +276,40 @@ export default function ProductDetailPage() {
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-stone-500 font-medium">Tarif appliqué :</span>
                   <Badge variant={isWholesale ? 'green' : 'stone'}>
-                    {isWholesale ? 'Tarif de Gros Appliqué' : 'Tarif au Détail'}
+                    {isWholesale ? 'Tarif quantité appliqué' : 'Tarif unitaire'}
                   </Badge>
                 </div>
                 <div className="flex items-baseline justify-between">
                   <span className="text-xs text-stone-600">Prix unitaire par {activeOffer.unit} :</span>
                   <div className="text-right">
-                    <span className="text-2xl font-black text-stone-900">{dualUnitPrices.primary}</span>
-                    <span className="text-xs text-stone-400 block">{dualUnitPrices.secondary}</span>
+                    <span className="text-2xl font-black text-stone-900">{unitPrice}</span>
                   </div>
                 </div>
                 {activeOffer.wholesaleMinQuantity && !isWholesale && (
                   <p className="text-[11px] text-amber-800 bg-amber-50 p-2 rounded-lg border border-amber-200">
-                    Astuce grossiste : Commandez <strong>{activeOffer.wholesaleMinQuantity} {activeOffer.unit}s</strong> ou plus pour débloquer le prix de gros à{' '}
+                    Dès <strong>{activeOffer.wholesaleMinQuantity} {activeOffer.unit}s</strong>, le prix par quantité est de{' '}
                     <strong>
-                      {currency === 'CDF'
-                        ? `${activeOffer.wholesalePriceCdf?.toLocaleString('fr-FR')} FC`
-                        : `${activeOffer.wholesalePriceUsd?.toFixed(2)} $`}
+                      {formatCdfPrice(activeOffer.wholesalePriceCdf ?? 0)}
                     </strong>
                     .
                   </p>
                 )}
               </div>
 
+              {isAuthLoading ? (
+                <p className="mb-6 rounded-xl border border-stone-200 bg-stone-50 p-4 text-sm text-stone-600">
+                  Vérification de votre session...
+                </p>
+              ) : isAdmin ? (
+                <p className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                  Le compte administrateur peut consulter les offres, mais ne peut pas ajouter d’articles au panier ni commander.
+                </p>
+              ) : isOwnOffer ? (
+                <p className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                  Vous ne pouvez pas acheter votre propre marchandise.
+                </p>
+              ) : (
+                <>
               {/* Quantity Selector */}
               <div className="mb-6">
                 <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-2">
@@ -333,8 +354,7 @@ export default function ProductDetailPage() {
                 <div className="flex justify-between items-baseline">
                   <span className="text-sm font-bold text-stone-800">Sous-total :</span>
                   <div className="text-right">
-                    <span className="text-2xl font-black text-emerald-800">{dualTotalPrices.primary}</span>
-                    <span className="text-xs text-stone-400 block">{dualTotalPrices.secondary}</span>
+                    <span className="text-2xl font-black text-emerald-800">{totalPrice}</span>
                   </div>
                 </div>
                 <p className="text-[11px] text-stone-400">
@@ -350,7 +370,7 @@ export default function ProductDetailPage() {
                   className="w-full shadow-md"
                   onClick={handleAddToCart}
                 >
-                  {addedToCart ? '✓ Ajouté au panier !' : 'Ajouter au Panier'}
+                  {addedToCart ? 'Ajouté au panier !' : 'Ajouter au Panier'}
                 </Button>
                 <Link href={`/vendeurs/${activeOffer.sellerId}`} className="block">
                   <Button variant="outline" size="md" className="w-full">
@@ -358,6 +378,8 @@ export default function ProductDetailPage() {
                   </Button>
                 </Link>
               </div>
+                </>
+              )}
 
               {/* Trust Box */}
               <div className="mt-6 pt-6 border-t border-stone-100 text-xs text-stone-500 space-y-2.5">
@@ -367,7 +389,7 @@ export default function ProductDetailPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <IconTruck className="w-4 h-4 text-emerald-700 shrink-0" />
-                  <span>Suivi d&apos;acheminement avec numéro de bordereau horodaté</span>
+                  <span>Informations de livraison communiquées après validation de la commande</span>
                 </div>
               </div>
             </div>
