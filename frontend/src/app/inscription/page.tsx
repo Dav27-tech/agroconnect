@@ -1,21 +1,22 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { Suspense, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../context/AuthContext';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { DRC_PROVINCES } from '../../constants/drc';
-import { IconCart, IconCheck, IconPlant, IconShieldCheck, IconPhone, IconTruck } from '../../components/ui/Icons';
-import { UserRole } from '../../types';
+import { IconCart, IconCheck, IconPlant, IconShieldCheck, IconPhone } from '../../components/ui/Icons';
 
-export default function RegisterPage() {
+function RegisterForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { register } = useAuth();
-  const [selectedRole, setSelectedRole] = useState<UserRole>('BUYER');
+  const [selectedRole, setSelectedRole] = useState<'BUYER' | 'SELLER'>('BUYER');
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
   const [province, setProvince] = useState('Kinshasa');
   const [city, setCity] = useState('');
   const [password, setPassword] = useState('');
@@ -23,25 +24,21 @@ export default function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [registered, setRegistered] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const redirectCandidate = searchParams.get('redirect');
+  const redirectPath = redirectCandidate?.startsWith('/') ? redirectCandidate : '';
 
-  const roleOptions: Array<{ role: UserRole; title: string; desc: string; icon: React.ReactNode }> = [
+  const roleOptions: Array<{ role: 'BUYER' | 'SELLER'; title: string; desc: string; icon: React.ReactNode }> = [
     {
       role: 'BUYER',
-      title: 'Acheteur (Particulier ou Pro)',
-      desc: 'Commander des récoltes et intrants au détail ou en gros.',
+      title: 'Acheteur',
+      desc: 'Parcourir les produits agricoles et commander selon vos besoins.',
       icon: <IconCart className="w-6 h-6" aria-hidden="true" />,
     },
     {
       role: 'SELLER',
       title: 'Agriculteur / Vendeur',
-      desc: 'Vendre mes récoltes directes ou intrants sans intermédiaire.',
+      desc: 'Publier et vendre directement mes récoltes.',
       icon: <IconPlant className="w-6 h-6" aria-hidden="true" />,
-    },
-    {
-      role: 'DELIVERY_PROVIDER',
-      title: 'Transporteur & Logistique',
-      desc: 'Acheminement et fret agricole urbain ou inter-provinces.',
-      icon: <IconTruck className="w-6 h-6" aria-hidden="true" />,
     },
   ];
 
@@ -53,17 +50,22 @@ export default function RegisterPage() {
     setErrorMessage('');
 
     try {
-      const assignedRoles = selectedRole === 'SELLER' ? ['SELLER', 'BUYER'] : [selectedRole];
       await register({
         phoneNumber: phone,
         fullName,
         password,
+        email,
         role: selectedRole,
-        roles: assignedRoles,
+        province,
+        city,
       });
 
       setRegistered(true);
       setTimeout(() => {
+        if (redirectPath) {
+          router.push(redirectPath);
+          return;
+        }
         if (selectedRole === 'SELLER') {
           router.push('/vendeur/dashboard');
         } else {
@@ -80,21 +82,12 @@ export default function RegisterPage() {
   return (
     <div className="min-h-screen bg-stone-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-xl mx-auto">
-        <Link href="/" className="flex items-center justify-center gap-2 mb-6">
-          <div className="w-11 h-11 rounded-2xl bg-emerald-800 text-white flex items-center justify-center shadow-xs">
-            <IconPlant className="w-6 h-6" aria-hidden="true" />
-          </div>
-          <span className="text-2xl font-black text-stone-900">
-            Agro<span className="text-orange-600">Connect</span>
-          </span>
-        </Link>
-
         <div className="text-center mb-8">
           <h1 className="text-2xl sm:text-3xl font-black text-stone-900 tracking-tight">
-            Créer votre compte AgroConnect
+            Créer votre compte
           </h1>
           <p className="mt-2 text-xs sm:text-sm text-stone-600">
-            Rejoignez la première communauté agricole numérique en République Démocratique du Congo.
+            Créez un compte acheteur ou agriculteur avec votre adresse email.
           </p>
         </div>
 
@@ -111,7 +104,7 @@ export default function RegisterPage() {
                 Bienvenue sur AgroConnect RDC, {fullName}. Votre profil a été enregistré avec succès. Redirection en cours...
               </p>
               <div className="pt-4 flex flex-col gap-2">
-                <Link href={selectedRole === 'SELLER' ? '/vendeur/dashboard' : '/catalogue'}>
+                <Link href={redirectPath || (selectedRole === 'SELLER' ? '/vendeur/dashboard' : '/catalogue')}>
                   <Button variant="primary" size="md" className="w-full">
                     {selectedRole === 'SELLER' ? 'Accéder à mon Espace Vendeur' : 'Explorer le Catalogue'}
                   </Button>
@@ -131,7 +124,7 @@ export default function RegisterPage() {
                 <label className="block text-xs font-bold uppercase tracking-wider text-stone-700 mb-2">
                   Votre activité sur la plateforme *
                 </label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   {roleOptions.map((opt) => {
                     const isSelected = selectedRole === opt.role;
                     return (
@@ -160,6 +153,15 @@ export default function RegisterPage() {
 
               {/* Nom & Téléphone */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Input
+                  label="Adresse email *"
+                  placeholder="vous@exemple.com"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
                 <Input
                   label="Nom complet ou Coopérative *"
                   placeholder="ex: Papa Jean-Pierre Kabamba"
@@ -211,7 +213,8 @@ export default function RegisterPage() {
               <Input
                 label="Mot de passe sécurisé *"
                 type="password"
-                placeholder="Au moins 6 caractères"
+                placeholder="Au moins 10 caractères"
+                minLength={10}
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -230,10 +233,9 @@ export default function RegisterPage() {
                   <span>
                     J&apos;accepte les{' '}
                     <Link href="/a-propos" className="text-emerald-800 underline font-bold">
-                      Conditions Générales
+                      Conditions d&apos;utilisation
                     </Link>{' '}
-                    d&apos;AgroConnect RDC et reconnais qu&apos;AgroConnect est strictement un intermédiaire
-                    de mise en relation.
+                    d&apos;AgroConnect RDC.
                   </span>
                 </label>
               </div>
@@ -261,9 +263,23 @@ export default function RegisterPage() {
 
         <div className="mt-6 text-center text-xs text-stone-400 flex items-center justify-center gap-2">
           <IconShieldCheck className="w-4 h-4 text-emerald-700" />
-          <span>Plateforme sécurisée • RDC République Démocratique du Congo</span>
+          <span>Session sécurisée • Acheteurs et agriculteurs</span>
         </div>
       </div>
     </div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-stone-50 text-sm text-stone-600">
+          Chargement de la page d’inscription…
+        </div>
+      }
+    >
+      <RegisterForm />
+    </Suspense>
   );
 }
