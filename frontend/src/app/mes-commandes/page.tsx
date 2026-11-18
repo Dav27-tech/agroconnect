@@ -1,102 +1,61 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import Link from 'next/link';
+import React, { useEffect, useState } from 'react';
 import { PageHeader } from '../../components/layout/PageHeader';
-import { Button } from '../../components/ui/Button';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { useAuth } from '../../context/AuthContext';
-import { useCurrency } from '../../context/CurrencyContext';
-import { formatDualPrice } from '../../utils/format';
-import { IconCheck, IconTruck } from '../../components/ui/Icons';
+import { formatCdfPrice } from '../../utils/format';
 import { ParentOrder } from '../../types';
 import { api } from '../../services/api';
 
 export default function MyOrdersPage() {
-  const { user, isAuthenticated } = useAuth();
-  const { currency } = useCurrency();
+  const { isAuthenticated, isAdmin, isLoading: isAuthLoading } = useAuth();
   const [orders, setOrders] = useState<ParentOrder[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isOrdersLoading, setIsOrdersLoading] = useState(true);
+  const isLoading = isAuthLoading || (isAuthenticated && isOrdersLoading);
 
   useEffect(() => {
-    async function loadOrders() {
-      setIsLoading(true);
-      try {
-        // Chargement de la commande de démo ou des commandes réelles
-        const demoOrder = await api.orders.getById('ord-demo-202611-001');
-        if (demoOrder) {
-          setOrders([demoOrder]);
-        }
-      } catch {
-        // Repli démo
-        setOrders([
-          {
-            id: 'ord-demo-202611-001',
-            orderNumber: 'AGC-ORD-202611-1001',
-            buyerId: user?.id || 'usr-buyer-patrick',
-            status: 'CONFIRMED',
-            currency: 'CDF',
-            exchangeRateSnapshot: 2850,
-            totalItemsCdf: 1970000,
-            totalItemsUsd: 691.23,
-            deliveryFeeCdf: 30000,
-            deliveryFeeUsd: 10.53,
-            totalAmountCdf: 2000000,
-            totalAmountUsd: 701.75,
-            deliveryProvince: 'Kinshasa',
-            deliveryCity: 'Kinshasa',
-            deliveryAddress: 'Avenue Colonel Mondjiba n° 34, Gombe',
-            recipientName: 'Patrick Mwamba',
-            recipientPhone: '+243890001122',
-            createdAt: '2026-11-13T10:00:00.000Z',
-            subOrders: [
-              {
-                id: 'sub-demo-001-A',
-                subOrderNumber: 'AGC-ORD-202611-1001-A',
-                parentOrderId: 'ord-demo-202611-001',
-                sellerId: 'seller-coopak-kikwit',
-                sellerName: 'Coopérative Agricole du Kwilu (COOPAK)',
-                status: 'PREPARING',
-                subtotalCdf: 1760000,
-                subtotalUsd: 617.54,
-                commissionRate: 5.0,
-                commissionAmountCdf: 88000,
-                commissionAmountUsd: 30.88,
-                payoutAmountCdf: 1672000,
-                payoutAmountUsd: 586.67,
-                deliveryId: 'del-demo-001-A',
-              },
-              {
-                id: 'sub-demo-001-B',
-                subOrderNumber: 'AGC-ORD-202611-1001-B',
-                parentOrderId: 'ord-demo-202611-001',
-                sellerId: 'seller-agrodistrib-kin',
-                sellerName: 'AgroDistrib Kinshasa Express',
-                status: 'PREPARING',
-                subtotalCdf: 210000,
-                subtotalUsd: 73.68,
-                commissionRate: 5.0,
-                commissionAmountCdf: 10500,
-                commissionAmountUsd: 3.68,
-                payoutAmountCdf: 199500,
-                payoutAmountUsd: 70.0,
-                deliveryId: 'del-demo-001-B',
-              },
-            ],
-          },
-        ]);
-      } finally {
-        setIsLoading(false);
-      }
-    }
+    if (isAuthLoading || !isAuthenticated) return;
 
-    loadOrders();
-  }, [user]);
+    let mounted = true;
+    api.orders.getMine().then((result) => {
+      if (mounted) setOrders(result);
+    }).catch((error) => {
+      console.error('Erreur de chargement des commandes:', error);
+    }).finally(() => {
+      if (mounted) setIsOrdersLoading(false);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, [isAuthenticated, isAuthLoading]);
+
+  if (!isAuthLoading && !isAuthenticated) {
+    return (
+      <EmptyState
+        title="Connectez-vous pour voir vos commandes"
+        description="Votre historique de commandes est réservé à votre compte acheteur."
+        actionText="Se connecter"
+        actionHref="/connexion?redirect=%2Fmes-commandes"
+      />
+    );
+  }
+
+  if (!isAuthLoading && isAdmin) {
+    return (
+      <EmptyState
+        title="Espace acheteur uniquement"
+        description="Les comptes administrateur ne disposent pas d’historique de commandes acheteur."
+        actionText="Retour à l’administration"
+        actionHref="/admin"
+      />
+    );
+  }
 
   return (
     <div className="bg-stone-50 min-h-screen pb-20">
       <PageHeader
-        title="Mes Commandes & Suivis"
+        title="Mes Commandes"
         subtitle="Historique de vos commandes passées auprès des producteurs et distributeurs de la RDC."
         breadcrumbs={[
           { label: 'Accueil', href: '/' },
@@ -114,7 +73,6 @@ export default function MyOrdersPage() {
         ) : orders.length > 0 ? (
           <div className="space-y-6">
             {orders.map((order) => {
-              const orderDual = formatDualPrice(order.totalAmountCdf, order.totalAmountUsd, currency);
               return (
                 <div
                   key={order.id}
@@ -130,14 +88,12 @@ export default function MyOrdersPage() {
                         </span>
                       </div>
                       <p className="text-xs text-stone-500 mt-1">
-                        Date : {new Date(order.createdAt).toLocaleDateString('fr-FR')} • Taux figé :{' '}
-                        <strong>1 USD = {order.exchangeRateSnapshot} CDF</strong>
+                        Date : {new Date(order.createdAt).toLocaleDateString('fr-FR')}
                       </p>
                     </div>
 
                     <div className="text-right">
-                      <p className="text-lg font-black text-emerald-900">{orderDual.primary}</p>
-                      <p className="text-xs text-stone-500">{orderDual.secondary}</p>
+                      <p className="text-lg font-black text-emerald-900">{formatCdfPrice(order.totalAmountCdf)}</p>
                     </div>
                   </div>
 
@@ -149,7 +105,6 @@ export default function MyOrdersPage() {
 
                     <div className="space-y-3">
                       {order.subOrders?.map((sub) => {
-                        const subDual = formatDualPrice(sub.subtotalCdf, sub.subtotalUsd, currency);
                         return (
                           <div
                             key={sub.id}
@@ -168,17 +123,7 @@ export default function MyOrdersPage() {
                             </div>
 
                             <div className="flex items-center gap-4">
-                              <span className="text-xs font-bold text-stone-800">{subDual.primary}</span>
-                              <Link href={`/suivi/${sub.deliveryId || 'AGC-TRK-784910'}`}>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  leftIcon={<IconTruck className="w-3.5 h-3.5" />}
-                                  className="cursor-pointer"
-                                >
-                                  Suivre le colis
-                                </Button>
-                              </Link>
+                              <span className="text-xs font-bold text-stone-800">{formatCdfPrice(sub.subtotalCdf)}</span>
                             </div>
                           </div>
                         );
