@@ -2,18 +2,32 @@
 
 import React from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { useCart } from '../../context/CartContext';
-import { useCurrency } from '../../context/CurrencyContext';
 import { PageHeader } from '../../components/layout/PageHeader';
 import { Button } from '../../components/ui/Button';
 import { EmptyState } from '../../components/ui/EmptyState';
-import { formatDualPrice } from '../../utils/format';
-import { IconTrash, IconShoppingBag, IconShieldCheck, IconTruck } from '../../components/ui/Icons';
+import { formatCdfPrice } from '../../utils/format';
+import { IconTrash, IconShieldCheck, IconAlert } from '../../components/ui/Icons';
+import { useAuth } from '../../context/AuthContext';
 
 export default function CartPage() {
-  const { items, calculation, isLoadingCalculation, updateQuantity, removeFromCart, clearCart } = useCart();
-  const { currency, exchangeRate } = useCurrency();
+  const { items, isCartHydrated, calculation, isLoadingCalculation, updateQuantity, removeFromCart, clearCart } = useCart();
+  const { user, isAdmin, isLoading: isAuthLoading } = useAuth();
+
+  if (!isCartHydrated || isAuthLoading) {
+    return <p className="p-12 text-center text-sm text-stone-500">Chargement du panier...</p>;
+  }
+
+  if (isAdmin) {
+    return (
+      <EmptyState
+        title="Panier réservé aux acheteurs"
+        description="Un compte administrateur ne peut pas passer de commande."
+        actionText="Retour à l’administration"
+        actionHref="/admin"
+      />
+    );
+  }
 
   if (items.length === 0) {
     return (
@@ -35,8 +49,7 @@ export default function CartPage() {
     );
   }
 
-  const totals = calculation?.totals || {
-    totalCdf: items.reduce(
+  const totalCdfAmount = calculation?.totals.totalCdf ?? items.reduce(
       (sum, i) =>
         sum +
         (i.saleType === 'WHOLESALE' && i.offer.wholesalePriceCdf
@@ -44,19 +57,11 @@ export default function CartPage() {
           : i.offer.retailPriceCdf) *
           i.quantity,
       0
-    ),
-    totalUsd: items.reduce(
-      (sum, i) =>
-        sum +
-        (i.saleType === 'WHOLESALE' && i.offer.wholesalePriceUsd
-          ? i.offer.wholesalePriceUsd
-          : i.offer.retailPriceUsd) *
-          i.quantity,
-      0
-    ),
-  };
-
-  const dualTotals = formatDualPrice(totals.totalCdf, totals.totalUsd, currency);
+    );
+  const totalCdf = formatCdfPrice(totalCdfAmount);
+  const hasOwnOffer = Boolean(
+    user?.sellerId && items.some((item) => item.offer.sellerId === user.sellerId)
+  );
 
   return (
     <div className="bg-stone-50 min-h-screen pb-20">
@@ -74,10 +79,15 @@ export default function CartPage() {
       />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
+        {hasOwnOffer && (
+          <div role="alert" className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            Retirez vos propres offres du panier avant de continuer la commande.
+          </div>
+        )}
         {calculation?.hasStockShortage && (
           <div className="mb-6 p-4 bg-orange-50 border border-orange-200 rounded-2xl text-xs text-orange-950 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="font-bold text-orange-700">⚠️ Attention :</span>
+              <span className="font-bold text-orange-700 inline-flex items-center gap-1"><IconAlert className="w-4 h-4" />Attention :</span>
               <span>Certains articles demandent une quantité supérieure au stock actuellement disponible chez le vendeur.</span>
             </div>
             <button
@@ -95,7 +105,7 @@ export default function CartPage() {
           <div className="lg:col-span-8 space-y-6">
             {calculation?.sellerGroups && calculation.sellerGroups.length > 0 ? (
               calculation.sellerGroups.map((group) => {
-                const groupDual = formatDualPrice(group.sellerSubtotalCdf, group.sellerSubtotalUsd, currency);
+                const groupTotal = formatCdfPrice(group.sellerSubtotalCdf);
                 return (
                   <div
                     key={group.sellerId}
@@ -115,15 +125,15 @@ export default function CartPage() {
                         </Link>
                       </div>
                       <span className="text-xs font-bold text-stone-700">
-                        Sous-total : {groupDual.primary}
+                        Sous-total : {groupTotal}
                       </span>
                     </div>
 
                     {/* Articles du groupe */}
                     <div className="divide-y divide-stone-100 p-6 space-y-4">
                       {group.items.map((item) => {
-                        const itemDual = formatDualPrice(item.subtotalCdf, item.subtotalUsd, currency);
-                        const unitDual = formatDualPrice(item.unitPriceCdf, item.unitPriceUsd, currency);
+                        const itemTotal = formatCdfPrice(item.subtotalCdf);
+                        const unitPrice = formatCdfPrice(item.unitPriceCdf);
                         return (
                           <div
                             key={`${item.offerId}-${item.saleType}`}
@@ -134,9 +144,9 @@ export default function CartPage() {
                               <p className="text-xs text-stone-500">
                                 Unité : {item.unit} • Tarif :{' '}
                                 <span className="font-semibold text-emerald-800">
-                                  {item.saleType === 'WHOLESALE' ? 'En gros' : 'Au détail'}
+                                  {item.saleType === 'WHOLESALE' ? 'Par quantité' : 'À l’unité'}
                                 </span>{' '}
-                                ({unitDual.primary} / unité)
+                                ({unitPrice} / unité)
                               </p>
                               {!item.isStockSufficient && (
                                 <p className="text-[11px] text-red-600 font-bold mt-1">
@@ -168,8 +178,7 @@ export default function CartPage() {
                               </div>
 
                               <div className="text-right min-w-[100px]">
-                                <p className="text-sm font-bold text-stone-900">{itemDual.primary}</p>
-                                <p className="text-[10px] text-stone-500">{itemDual.secondary}</p>
+                                <p className="text-sm font-bold text-stone-900">{itemTotal}</p>
                               </div>
 
                               <button
@@ -253,22 +262,24 @@ export default function CartPage() {
                 </div>
 
                 <div className="flex justify-between text-stone-600">
-                  <span>Taux indicatif appliqué :</span>
-                  <span className="font-semibold text-stone-700">
-                    1 $ = {(calculation?.exchangeRateSnapshot || exchangeRate).toLocaleString('fr-FR')} FC
-                  </span>
+                  <span>Devise :</span>
+                  <span className="font-semibold text-stone-700">Franc Congolais (CDF)</span>
                 </div>
 
                 <div className="pt-4 border-t border-stone-100 flex items-baseline justify-between">
                   <span className="text-sm font-black text-stone-900">Total à payer :</span>
                   <div className="text-right">
-                    <p className="text-xl font-black text-emerald-900">{dualTotals.primary}</p>
-                    <p className="text-xs text-stone-500">{dualTotals.secondary}</p>
+                    <p className="text-xl font-black text-emerald-900">{totalCdf}</p>
                   </div>
                 </div>
               </div>
 
-              <Link href="/panier/commander" className="block">
+              {hasOwnOffer ? (
+                <Button variant="primary" size="lg" className="w-full" disabled>
+                  Retirez votre offre
+                </Button>
+              ) : (
+                <Link href="/panier/commander" className="block">
                 <Button
                   variant="primary"
                   size="lg"
@@ -278,7 +289,8 @@ export default function CartPage() {
                 >
                   Valider et Commander
                 </Button>
-              </Link>
+                </Link>
+              )}
 
               <div className="p-3 bg-stone-50 rounded-2xl border border-stone-200 space-y-2 text-[11px] text-stone-600">
                 <div className="flex items-center gap-1.5 font-bold text-emerald-800">
