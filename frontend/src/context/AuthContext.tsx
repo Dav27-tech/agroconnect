@@ -114,15 +114,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const remainingTime = payload.exp * 1000 - Date.now();
       if (remainingTime <= 0) {
-        logout();
-        return;
+        const timeoutId = window.setTimeout(logout, 0);
+        return () => window.clearTimeout(timeoutId);
       }
 
       const timeoutId = window.setTimeout(logout, remainingTime);
       return () => window.clearTimeout(timeoutId);
     } catch (error) {
       console.warn('Impossible de vérifier l’expiration de la session :', error);
-      logout();
+      const timeoutId = window.setTimeout(logout, 0);
+      return () => window.clearTimeout(timeoutId);
     }
   }, [token, logout]);
 
