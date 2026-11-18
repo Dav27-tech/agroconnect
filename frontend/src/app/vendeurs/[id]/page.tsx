@@ -1,14 +1,12 @@
 'use client';
 
 import React, { useMemo, useState, useEffect } from 'react';
-import Image from 'next/image';
 import { useParams } from 'next/navigation';
 import { PageHeader } from '../../../components/layout/PageHeader';
 import { ProductCard } from '../../../components/marketplace/ProductCard';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { translateSellerType } from '../../../utils/format';
-import { IconCheck, IconPlant, IconShieldCheck, IconLocation, IconStar, IconPhone, IconBuilding } from '../../../components/ui/Icons';
-import { MOCK_SELLERS, MOCK_OFFERS } from '../../../data/mockData';
+import { IconPlant, IconShieldCheck, IconLocation, IconPhone, IconBuilding } from '../../../components/ui/Icons';
 import { api } from '../../../services/api';
 import { SellerOfferItem, SellerProfile } from '../../../types';
 
@@ -16,10 +14,8 @@ export default function SellerProfilePage() {
   const params = useParams();
   const sellerId = params?.id as string;
 
-  const [seller, setSeller] = useState<SellerProfile>(() => {
-    return (MOCK_SELLERS.find((s) => s.id === sellerId) || MOCK_SELLERS[0]!) as unknown as SellerProfile;
-  });
-  const [offers, setOffers] = useState<SellerOfferItem[]>(MOCK_OFFERS);
+  const [seller, setSeller] = useState<SellerProfile | null>(null);
+  const [offers, setOffers] = useState<SellerOfferItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -31,12 +27,8 @@ export default function SellerProfilePage() {
           api.offers.list({ sellerId }),
         ]);
         if (mounted) {
-          if (sellerRes && sellerRes.id) {
-            setSeller(sellerRes);
-          }
-          if (Array.isArray(offersRes) && offersRes.length > 0) {
-            setOffers(offersRes);
-          }
+          setSeller(sellerRes);
+          setOffers(offersRes);
         }
       } catch (err) {
         console.error('Erreur chargement vendeur:', err);
@@ -51,20 +43,12 @@ export default function SellerProfilePage() {
   }, [sellerId]);
 
   const sellerOffers = useMemo(() => {
-    return offers.filter((o) => o.sellerId === seller.id || o.sellerId === sellerId);
+    return offers.filter((o) => o.sellerId === seller?.id || o.sellerId === sellerId);
   }, [offers, seller, sellerId]);
 
-  const sellerInfo = translateSellerType(seller.sellerType);
-
-  const coverUrl = seller.coverUrl || 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&q=80&w=800';
-  const avatarUrl = seller.avatarUrl || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=300';
-  const joinDate = seller.joinDate || 'Janvier 2024';
-  const totalSales = seller.totalSales ?? 120;
-  const rating = seller.rating ?? 4.8;
-  const reviewsCount = seller.reviewsCount ?? 14;
-  const specialties = seller.specialties || ['Productions locales', 'Approvisionnement direct'];
-  const badges = seller.badges || ['Certifié AgroConnect', 'Livraison disponible'];
-  const phone = seller.phone || '+243 81 234 5678';
+  if (loading) {
+    return <p className="p-12 text-center text-sm text-stone-500">Chargement du vendeur...</p>;
+  }
 
   if (!seller) {
     return (
@@ -77,11 +61,13 @@ export default function SellerProfilePage() {
     );
   }
 
+  const sellerInfo = translateSellerType(seller.sellerType);
+
   return (
     <div className="bg-stone-50 min-h-screen pb-20">
       <PageHeader
         title={seller.businessName}
-        subtitle={`Vendeur référencé en RDC depuis ${joinDate} • ${seller.city}, Province du ${seller.province}`}
+        subtitle={`${seller.city}, Province du ${seller.province}`}
         breadcrumbs={[
           { label: 'Accueil', href: '/' },
           { label: 'Vendeurs', href: '/#vendeurs' },
@@ -92,28 +78,14 @@ export default function SellerProfilePage() {
       {/* Seller Hero Cover */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
         <div className="bg-white rounded-3xl border border-stone-200 overflow-hidden shadow-xs mb-10">
-          {/* Cover image */}
-          <div className="relative h-48 sm:h-64 w-full bg-emerald-950">
-            <Image
-              src={coverUrl}
-              alt={seller.businessName}
-              fill
-              className="object-cover"
-              priority
-            />
-          </div>
+          <div className="h-24 w-full bg-emerald-900" />
 
           {/* Profile Header Details */}
           <div className="px-6 sm:px-10 pb-8 pt-0">
             <div className="relative -mt-16 sm:-mt-20 mb-6 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
               <div className="flex items-end gap-5">
-                <div className="relative w-28 h-28 sm:w-36 sm:h-36 rounded-3xl overflow-hidden border-4 border-white shadow-lg bg-stone-100 shrink-0">
-                  <Image
-                    src={avatarUrl}
-                    alt={seller.businessName}
-                    fill
-                    className="object-cover"
-                  />
+                <div className="relative w-28 h-28 sm:w-36 sm:h-36 rounded-3xl overflow-hidden border-4 border-white shadow-lg bg-emerald-50 text-emerald-800 flex items-center justify-center shrink-0">
+                  <IconPlant className="w-12 h-12" aria-hidden="true" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2 mb-1 flex-wrap">
@@ -137,27 +109,9 @@ export default function SellerProfilePage() {
                 </div>
               </div>
 
-              {/* Stats badges */}
-              <div className="flex items-center gap-4 bg-stone-50 p-3 rounded-2xl border border-stone-200/80 self-start sm:self-auto">
-                <div className="text-center px-2">
-                  <div className="flex items-center gap-1 justify-center text-sm font-black text-stone-900">
-                    <IconStar className="w-4 h-4 text-amber-500 fill-amber-500" />
-                    <span>{rating}</span>
-                  </div>
-                  <span className="text-[10px] text-stone-400 uppercase font-bold tracking-wider">
-                    {reviewsCount} avis clients
-                  </span>
-                </div>
-                <div className="h-8 w-[1px] bg-stone-200" />
-                <div className="text-center px-2">
-                  <span className="text-sm font-black text-stone-900 block">
-                    {totalSales}
-                  </span>
-                  <span className="text-[10px] text-stone-400 uppercase font-bold tracking-wider">
-                    Expéditions réussies
-                  </span>
-                </div>
-              </div>
+              <p className="text-sm font-semibold text-stone-700 self-start sm:self-auto">
+                {sellerOffers.length} offre{sellerOffers.length === 1 ? '' : 's'} active{sellerOffers.length === 1 ? '' : 's'}
+              </p>
             </div>
 
             {/* Seller Story / Description */}
@@ -170,35 +124,25 @@ export default function SellerProfilePage() {
                   {seller.description}
                 </p>
 
-                {/* Specialties & Badges */}
-                <div>
-                  <h4 className="text-xs font-bold text-stone-700 uppercase tracking-wider mb-2">
-                    Spécialités & Engagements
-                  </h4>
-                  <div className="flex flex-wrap gap-2">
-                    {specialties.map((spec: string) => (
-                      <span key={spec} className="text-xs bg-stone-100 text-stone-700 font-semibold px-3 py-1 rounded-lg inline-flex items-center gap-1">
-                        <IconPlant className="w-3.5 h-3.5 text-emerald-700" aria-hidden="true" />
-                        {spec}
-                      </span>
-                    ))}
-                    {badges.map((b: string) => (
-                      <span key={b} className="text-xs bg-emerald-50 text-emerald-800 border border-emerald-200 font-semibold px-3 py-1 rounded-lg inline-flex items-center gap-1">
-                        <IconCheck className="w-3.5 h-3.5" aria-hidden="true" />
-                        {b}
-                      </span>
-                    ))}
+                {seller.services && seller.services.length > 0 && (
+                  <div>
+                    <h4 className="text-xs font-bold text-stone-700 uppercase tracking-wider mb-2">Services</h4>
+                    <ul className="space-y-1 text-sm text-stone-600">
+                      {seller.services.map((service) => <li key={service.id}>{service.title}</li>)}
+                    </ul>
                   </div>
-                </div>
+                )}
               </div>
 
               {/* Direct Inquiries & Contact Note */}
               <div className="bg-stone-50 p-5 rounded-2xl border border-stone-200/80 space-y-3 text-xs">
                 <h4 className="font-bold text-stone-900 text-sm">Informations Commerciales</h4>
-                <div className="flex items-center gap-2 text-stone-600">
-                  <IconPhone className="w-4 h-4 text-emerald-800" />
-                  <span>Support commande : {phone}</span>
-                </div>
+                {seller.phone && (
+                  <div className="flex items-center gap-2 text-stone-600">
+                    <IconPhone className="w-4 h-4 text-emerald-800" />
+                    <span>Support commande : {seller.phone}</span>
+                  </div>
+                )}
                 <div className="flex items-center gap-2 text-stone-600">
                   <IconBuilding className="w-4 h-4 text-emerald-800" />
                   <span>Localisation dépôt : {seller.city}</span>
