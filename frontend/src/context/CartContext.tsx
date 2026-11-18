@@ -37,7 +37,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     try {
       const stored = sessionStorage.getItem('agroconnect_cart') || localStorage.getItem('agroconnect_cart');
       if (stored) {
-        setItems(JSON.parse(stored));
+        startTransition(() => setItems(JSON.parse(stored)));
       }
     } catch (e) {
       console.warn('Impossible de charger le panier de la session :', e);
