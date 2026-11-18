@@ -16,6 +16,16 @@ import {
 } from '../types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+const API_ORIGIN = new URL(API_BASE_URL).origin;
+
+function normalizeOfferImage<T extends { imageUrl?: string | null }>(offer: T): T {
+  if (!offer.imageUrl) return offer;
+
+  const imageUrl = new URL(offer.imageUrl, API_ORIGIN);
+  if (!imageUrl.pathname.startsWith('/uploads/')) return offer;
+
+  return { ...offer, imageUrl: imageUrl.pathname };
+}
 
 export class ApiError extends Error {
   public status: number;
@@ -140,7 +150,8 @@ export const api = {
     },
 
     async getBySlug(slug: string): Promise<ProductCatalogItem & { offers: SellerOfferItem[] }> {
-      return await request<ProductCatalogItem & { offers: SellerOfferItem[] }>(`/products/${slug}`);
+      const product = await request<ProductCatalogItem & { offers: SellerOfferItem[] }>(`/products/${slug}`);
+      return { ...product, offers: product.offers.map(normalizeOfferImage) };
     },
   },
 
@@ -162,11 +173,12 @@ export const api = {
       if (params?.search) searchParams.set('search', params.search);
       if (params?.featured) searchParams.set('featured', 'true');
       const query = searchParams.toString() ? `?${searchParams.toString()}` : '';
-      return await request<SellerOfferItem[]>(`/offers${query}`);
+      const offers = await request<SellerOfferItem[]>(`/offers${query}`);
+      return offers.map(normalizeOfferImage);
     },
 
     async getById(id: string): Promise<SellerOfferItem & { seller?: SellerProfile }> {
-      return await request<SellerOfferItem & { seller?: SellerProfile }>(`/offers/${id}`);
+      return normalizeOfferImage(await request<SellerOfferItem & { seller?: SellerProfile }>(`/offers/${id}`));
     },
 
     async create(data: Partial<SellerOfferItem>): Promise<SellerOfferItem> {
@@ -187,10 +199,14 @@ export const api = {
     },
 
     async update(id: string, data: Partial<SellerOfferItem>): Promise<SellerOfferItem> {
-      return await request<SellerOfferItem>(`/offers/${id}`, {
+      return normalizeOfferImage(await request<SellerOfferItem>(`/offers/${id}`, {
         method: 'PUT',
         body: JSON.stringify(data),
-      });
+      }));
+    },
+
+    async remove(id: string): Promise<void> {
+      await request<void>(`/offers/${id}`, { method: 'DELETE' });
     },
   },
 
@@ -317,7 +333,10 @@ export const api = {
       quantityChange: number;
       movementType: StockMovementType;
       notes?: string;
-    }): Promise<{ offer: SellerOfferItem; movement: StockMovement }> {
+    }): Promise<{
+      offer: Pick<SellerOfferItem, 'id' | 'sellerId' | 'productName' | 'stockQuantity' | 'unit' | 'isAvailable'>;
+      movement: StockMovement;
+    }> {
       return await request('/inventory/movement', {
         method: 'POST',
         body: JSON.stringify(data),
@@ -400,6 +419,7 @@ export const api = {
       city: string;
       address?: string | null;
       verificationStatus: string;
+      isActive: boolean;
     }>> {
       return await request(`/admin/seller-profiles?status=${encodeURIComponent(status)}`);
     },
@@ -408,6 +428,13 @@ export const api = {
       return await request(`/admin/seller-profiles/${sellerId}/verification`, {
         method: 'PATCH',
         body: JSON.stringify({ status }),
+      });
+    },
+
+    async updateSellerActiveStatus(sellerId: string, isActive: boolean) {
+      return await request<{ sellerId: string; isActive: boolean }>(`/admin/seller-profiles/${sellerId}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ isActive }),
       });
     },
 
