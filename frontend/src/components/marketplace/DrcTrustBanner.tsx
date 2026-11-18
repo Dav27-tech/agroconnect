@@ -12,31 +12,30 @@ export function DrcTrustBanner() {
               Rejoindre le Réseau National
             </span>
             <h2 className="text-3xl sm:text-4xl font-black mt-4 mb-4">
-              Vous produisez, transformez ou distribuez en RDC ?
+              Vous cultivez et souhaitez vendre vos produits en RDC ?
             </h2>
             <p className="text-sm text-emerald-100 leading-relaxed mb-6">
-              Ouvrez votre boutique en ligne sur AgroConnect. Conservez 100% de la propriété de vos stocks,
-              définissez librement vos prix et bénéficiez de notre système de règlement sécurisé par Mobile Money.
+              Créez votre espace vendeur pour publier vos produits agricoles, gérer votre stock et recevoir les commandes des acheteurs.
             </p>
             <div className="flex flex-wrap gap-4 text-xs font-semibold text-emerald-200">
-              <span className="flex items-center gap-1.5"><IconCheck className="w-4 h-4" />Aucun frais d&apos;inscription initial</span>
-              <span className="flex items-center gap-1.5"><IconCheck className="w-4 h-4" />Paiements rapides certifiés</span>
-              <span className="flex items-center gap-1.5"><IconCheck className="w-4 h-4" />Déploiement dans les 26 provinces</span>
+              <span className="flex items-center gap-1.5"><IconCheck className="w-4 h-4" />Gérez vos offres et votre stock</span>
+              <span className="flex items-center gap-1.5"><IconCheck className="w-4 h-4" />Prix affichés en CDF</span>
+              <span className="flex items-center gap-1.5"><IconCheck className="w-4 h-4" />Accessible dans les 26 provinces</span>
             </div>
           </div>
 
           <div className="flex flex-col sm:flex-row lg:flex-col gap-3 w-full lg:w-auto">
             <Link
-              href="#vendeurs"
+              href="/inscription"
               className="text-center bg-orange-600 hover:bg-orange-700 text-white font-bold text-sm px-8 py-4 rounded-xl shadow-md transition"
             >
-              Créer mon espace producteur / revendeur
+              Créer mon espace vendeur
             </Link>
             <Link
-              href="#catalogue"
+              href="/catalogue"
               className="text-center bg-emerald-950/60 hover:bg-emerald-950 text-emerald-100 border border-emerald-700 font-bold text-sm px-8 py-3.5 rounded-xl transition"
             >
-              Consulter les demandes d&apos;achat B2B
+              Parcourir le catalogue
             </Link>
           </div>
         </div>
