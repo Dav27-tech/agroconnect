@@ -1,38 +1,65 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useCart } from '../../../context/CartContext';
 import { useAuth } from '../../../context/AuthContext';
-import { useCurrency } from '../../../context/CurrencyContext';
 import { PageHeader } from '../../../components/layout/PageHeader';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
-import { DRC_PROVINCES, DRC_MOBILE_MONEY_PROVIDERS } from '../../../constants/drc';
-import { formatDualPrice } from '../../../utils/format';
+import { EmptyState } from '../../../components/ui/EmptyState';
+import { DRC_PROVINCES } from '../../../constants/drc';
+import { formatCdfPrice } from '../../../utils/format';
 import { IconCheck, IconShieldCheck, IconPhone, IconTruck } from '../../../components/ui/Icons';
-import { ParentOrder, SupportedCurrency } from '../../../types';
+import { ParentOrder } from '../../../types';
 import { api } from '../../../services/api';
 
 export default function CheckoutPage() {
-  const router = useRouter();
-  const { items, calculation, clearCart } = useCart();
-  const { user } = useAuth();
-  const { currency, setCurrency, exchangeRate } = useCurrency();
+  const { items, isCartHydrated, calculation, clearCart } = useCart();
+  const { user, isAdmin, isLoading: isAuthLoading } = useAuth();
 
-  const [province, setProvince] = useState<string>('Kinshasa');
-  const [city, setCity] = useState<string>('Kinshasa');
-  const [commune, setCommune] = useState<string>('Gombe');
-  const [address, setAddress] = useState<string>('Avenue de la Paix n° 14');
-  const [recipientName, setRecipientName] = useState<string>(user?.fullName || 'Patrick Mwamba');
-  const [recipientPhone, setRecipientPhone] = useState<string>(user?.phoneNumber || '+243810001122');
-  const [instructions, setInstructions] = useState<string>('Entrepôt AgroCommerce, livraison de jour');
-  const [provider, setProvider] = useState<string>('ORANGE_MONEY');
+  const [province, setProvince] = useState<string>('');
+  const [city, setCity] = useState<string>('');
+  const [commune, setCommune] = useState<string>('');
+  const [address, setAddress] = useState<string>('');
+  const [recipientName, setRecipientName] = useState<string>(user?.fullName || '');
+  const [recipientPhone, setRecipientPhone] = useState<string>(user?.phoneNumber || '');
+  const [instructions, setInstructions] = useState<string>('');
 
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [confirmedOrder, setConfirmedOrder] = useState<ParentOrder | null>(null);
+  const orderIdempotencyKey = useRef<string | null>(null);
+
+  if (!isCartHydrated || isAuthLoading) {
+    return <p className="p-12 text-center text-sm text-stone-500">Chargement du panier...</p>;
+  }
+
+  if (isAdmin) {
+    return (
+      <div className="mx-auto max-w-xl px-4 py-16">
+        <EmptyState
+          title="Commande réservée aux acheteurs"
+          description="Un compte administrateur ne peut pas passer de commande."
+          actionText="Retour à l’administration"
+          actionHref="/admin"
+        />
+      </div>
+    );
+  }
+
+  if (user?.sellerId && items.some((item) => item.offer.sellerId === user.sellerId)) {
+    return (
+      <div className="mx-auto max-w-xl px-4 py-16">
+        <EmptyState
+          title="Offre personnelle dans le panier"
+          description="Vous ne pouvez pas commander vos propres marchandises. Retirez cette offre du panier pour continuer."
+          actionText="Modifier le panier"
+          actionHref="/panier"
+        />
+      </div>
+    );
+  }
 
   if (items.length === 0 && !confirmedOrder) {
     return (
@@ -48,8 +75,7 @@ export default function CheckoutPage() {
     );
   }
 
-  const totals = calculation?.totals || { totalCdf: 124000, totalUsd: 43.51 };
-  const dualTotals = formatDualPrice(totals.totalCdf, totals.totalUsd, currency);
+  const totalCdf = formatCdfPrice(calculation?.totals.totalCdf ?? 0);
 
   const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,7 +89,7 @@ export default function CheckoutPage() {
           quantity: i.quantity,
           saleType: i.saleType,
         })),
-        currency,
+        currency: 'CDF' as const,
         deliveryProvince: province,
         deliveryCity: city,
         deliveryCommune: commune,
@@ -73,9 +99,10 @@ export default function CheckoutPage() {
         deliveryInstructions: instructions,
       };
 
-      const order = await api.orders.create(payload);
+      orderIdempotencyKey.current ??= crypto.randomUUID();
+      const order = await api.orders.create(payload, orderIdempotencyKey.current);
       setConfirmedOrder(order);
-      clearCart();
+        clearCart();
     } catch (err) {
       setErrorMessage((err as Error).message || 'Erreur lors de la création de la commande');
     } finally {
@@ -96,38 +123,44 @@ export default function CheckoutPage() {
       />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
-        {confirmedOrder ? (
+        {!user ? (
+          <div className="mx-auto max-w-2xl space-y-5 rounded-3xl border border-stone-200 bg-white p-8 text-center shadow-sm">
+            <h2 className="text-xl font-black text-stone-900">Créez un compte pour commander</h2>
+            <p className="text-sm leading-relaxed text-stone-600">
+              Votre panier reste enregistré dans cette session. Inscrivez-vous ou connectez-vous avec votre adresse
+              email pour renseigner vos coordonnées et confirmer la commande.
+            </p>
+            <div className="flex flex-col justify-center gap-3 sm:flex-row">
+              <Link href="/inscription?redirect=%2Fpanier%2Fcommander">
+                <Button variant="primary">Créer mon compte</Button>
+              </Link>
+              <Link href="/connexion?redirect=%2Fpanier%2Fcommander">
+                <Button variant="outline">J&apos;ai déjà un compte</Button>
+              </Link>
+            </div>
+          </div>
+        ) : confirmedOrder ? (
           /* Confirmation State */
           <div className="max-w-3xl mx-auto bg-white p-8 sm:p-10 rounded-3xl border border-stone-200 shadow-md space-y-6">
             <div className="text-center space-y-3">
               <span className="w-16 h-16 mx-auto rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center">
                 <IconCheck className="w-9 h-9" />
               </span>
-              <h2 className="text-2xl font-black text-emerald-950">
-                Commande Confirmée avec Succès !
-              </h2>
+              <h2 className="text-2xl font-black text-emerald-950">Commande enregistrée</h2>
               <p className="text-xs text-stone-600 max-w-lg mx-auto">
-                Votre commande globale <strong>{confirmedOrder.orderNumber}</strong> a été transmise aux vendeurs concernés.
-                Chaque vendeur prépare sa propre sous-commande de manière indépendante.
+                Votre commande <strong>{confirmedOrder.orderNumber}</strong> est enregistrée avec le statut en attente.
+                Aucun paiement n&apos;a été demandé ni confirmé; les paiements ne sont pas connectés dans cette version.
               </p>
             </div>
 
             <div className="bg-stone-50 p-5 rounded-2xl border border-stone-200 space-y-2 text-xs">
               <div className="flex justify-between">
-                <span className="text-stone-500">Numéro de Commande Parent :</span>
+                <span className="text-stone-500">Numéro de commande :</span>
                 <span className="font-bold text-stone-900">{confirmedOrder.orderNumber}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-stone-500">Taux de Change Figé (Snapshot) :</span>
-                <span className="font-bold text-emerald-800">1 USD = {confirmedOrder.exchangeRateSnapshot} CDF</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-stone-500">Montant Total Facturé :</span>
-                <span className="font-black text-stone-900">
-                  {confirmedOrder.currency === 'CDF'
-                    ? `${confirmedOrder.totalAmountCdf.toLocaleString('fr-FR')} FC`
-                    : `${confirmedOrder.totalAmountUsd.toLocaleString('fr-FR')} $`}
-                </span>
+                <span className="text-stone-500">Total de la commande :</span>
+                <span className="font-black text-stone-900">{formatCdfPrice(confirmedOrder.totalAmountCdf)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-stone-500">Destination :</span>
@@ -162,11 +195,6 @@ export default function CheckoutPage() {
                       <span className="text-xs font-bold text-stone-900">
                         {sub.subtotalCdf.toLocaleString('fr-FR')} FC
                       </span>
-                      <Link href={`/suivi/${sub.deliveryId || 'AGC-TRK-784910'}`}>
-                        <Button variant="outline" size="sm" leftIcon={<IconTruck className="w-3.5 h-3.5" />}>
-                          Suivre la livraison
-                        </Button>
-                      </Link>
                     </div>
                   </div>
                 ))}
@@ -211,8 +239,10 @@ export default function CheckoutPage() {
                     <select
                       value={province}
                       onChange={(e) => setProvince(e.target.value)}
+                      required
                       className="w-full px-3.5 py-2.5 bg-white border border-stone-300 rounded-xl text-xs font-medium text-stone-800 focus:outline-none focus:ring-2 focus:ring-emerald-700"
                     >
+                      <option value="">Choisir une province</option>
                       {DRC_PROVINCES.map((p) => (
                         <option key={p} value={p}>
                           {p}
@@ -269,73 +299,17 @@ export default function CheckoutPage() {
                 />
               </div>
 
-              {/* Devise et Paiement */}
+              {/* Paiement */}
               <div className="bg-white p-6 sm:p-8 rounded-3xl border border-stone-200 shadow-xs space-y-5">
                 <h3 className="text-base font-black text-stone-900 border-b border-stone-100 pb-3 flex items-center gap-2">
                   <IconShieldCheck className="w-5 h-5 text-emerald-800" />
-                  <span>2. Devise & Moyen de Paiement</span>
+                  <span>2. Paiement en CDF</span>
                 </h3>
+                <p className="text-xs text-stone-600">Tous les montants de cette commande sont exprimés en Francs Congolais (CDF).</p>
 
-                {/* Choix de la Devise de Règlement */}
-                <div>
-                  <label className="block text-xs font-bold text-stone-700 mb-2">
-                    Devise de paiement appliquée :
-                  </label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setCurrency('CDF')}
-                      className={`p-3 rounded-xl border text-left cursor-pointer transition ${
-                        currency === 'CDF'
-                          ? 'border-emerald-800 bg-emerald-50 ring-2 ring-emerald-800/20'
-                          : 'border-stone-200 hover:border-stone-300'
-                      }`}
-                    >
-                      <p className="text-xs font-bold text-stone-900">Franc Congolais (CDF / FC)</p>
-                      <p className="text-[10px] text-stone-500 mt-0.5">Monnaie nationale officielle</p>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setCurrency('USD')}
-                      className={`p-3 rounded-xl border text-left cursor-pointer transition ${
-                        currency === 'USD'
-                          ? 'border-emerald-800 bg-emerald-50 ring-2 ring-emerald-800/20'
-                          : 'border-stone-200 hover:border-stone-300'
-                      }`}
-                    >
-                      <p className="text-xs font-bold text-stone-900">Dollar Américain (USD / $)</p>
-                      <p className="text-[10px] text-stone-500 mt-0.5">Taux : 1 $ = {exchangeRate} FC</p>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Opérateurs Mobile Money */}
-                <div>
-                  <label className="block text-xs font-bold text-stone-700 mb-2">
-                    Opérateur Mobile Money ou Banque :
-                  </label>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                    {DRC_MOBILE_MONEY_PROVIDERS.map((p) => {
-                      const isSelected = provider === p.id;
-                      return (
-                        <button
-                          key={p.id}
-                          type="button"
-                          onClick={() => setProvider(p.id)}
-                          className={`p-3 rounded-xl border text-center transition cursor-pointer ${
-                            isSelected
-                              ? 'border-emerald-800 bg-emerald-50 ring-2 ring-emerald-800/20'
-                              : 'border-stone-200 hover:border-stone-300'
-                          }`}
-                        >
-                          <p className="text-xs font-bold text-stone-900 leading-tight">{p.name}</p>
-                          <span className="text-[10px] text-stone-500">{p.prefix.join(', ')}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
+                <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+                  Le paiement n&apos;est pas disponible dans cette version. La création de commande ne déclenche aucun débit.
+                </p>
               </div>
             </div>
 
@@ -362,17 +336,9 @@ export default function CheckoutPage() {
                     </span>
                   </div>
 
-                  <div className="flex justify-between text-stone-600">
-                    <span>Taux garanti appliqué :</span>
-                    <span className="font-semibold text-stone-700">1 USD = {exchangeRate} CDF</span>
-                  </div>
-
                   <div className="pt-4 border-t border-stone-100 flex items-baseline justify-between">
                     <span className="text-sm font-black text-stone-900">Total à régler :</span>
-                    <div className="text-right">
-                      <p className="text-xl font-black text-emerald-900">{dualTotals.primary}</p>
-                      <p className="text-xs text-stone-500">{dualTotals.secondary}</p>
-                    </div>
+                    <p className="text-xl font-black text-emerald-900">{totalCdf}</p>
                   </div>
                 </div>
 
@@ -383,14 +349,13 @@ export default function CheckoutPage() {
                   className="w-full cursor-pointer shadow-md"
                   isLoading={isLoading}
                 >
-                  Confirmer et Payer ({dualTotals.primary})
+                  Créer la commande ({totalCdf})
                 </Button>
 
                 <div className="p-3 bg-stone-50 rounded-2xl border border-stone-200 text-[11px] text-stone-600 space-y-1">
                   <p className="font-bold text-stone-800">Règle de transaction AgroConnect :</p>
                   <p>
-                    Le taux de change sera figé de manière immuable au moment de la validation.
-                    Paiement vérifié sur les serveurs sécurisés backend d&apos;AgroConnect.
+                    Aucun paiement n&apos;est exécuté ni confirmé dans cette version.
                   </p>
                 </div>
               </div>
