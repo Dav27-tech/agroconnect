@@ -1,18 +1,21 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { Suspense, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../context/AuthContext';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
-import { IconCheck, IconPhone, IconPlant, IconShieldCheck } from '../../components/ui/Icons';
+import { IconCheck, IconEye, IconEyeOff, IconShieldCheck } from '../../components/ui/Icons';
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { login } = useAuth();
-  const [phone, setPhone] = useState('+243818001122');
-  const [password, setPassword] = useState('AdminAgro2026!');
+  const [email, setEmail] = useState('');
+  const redirectCandidate = searchParams.get('redirect');
+  const redirectPath = redirectCandidate?.startsWith('/') ? redirectCandidate : '';
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -24,14 +27,19 @@ export default function LoginPage() {
     setErrorMessage('');
 
     try {
-      await login(phone, password);
+      const loggedInUser = await login(email, password);
       setSuccess(true);
+      const destination = loggedInUser.roles.includes('ADMIN')
+        ? '/admin'
+        : loggedInUser.roles.includes('SELLER')
+          ? '/vendeur/dashboard'
+          : redirectPath || '/catalogue';
       setTimeout(() => {
-        router.push('/catalogue');
+        router.push(destination);
       }, 1200);
     } catch (err) {
       setErrorMessage(
-        (err as Error).message || 'Échec de connexion. Vérifiez votre numéro de téléphone ou votre mot de passe.'
+        (err as Error).message || 'Échec de connexion. Vérifiez votre adresse email ou votre mot de passe.'
       );
     } finally {
       setIsLoading(false);
@@ -41,19 +49,11 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-stone-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <Link href="/" className="flex items-center justify-center gap-2 mb-6">
-          <div className="w-12 h-12 rounded-2xl bg-emerald-800 text-white flex items-center justify-center shadow-xs">
-            <IconPlant className="w-7 h-7" aria-hidden="true" />
-          </div>
-          <span className="text-2xl font-black text-stone-900">
-            Agro<span className="text-orange-600">Connect</span>
-          </span>
-        </Link>
         <h1 className="text-center text-2xl font-black tracking-tight text-stone-900">
           Connexion à votre espace
         </h1>
         <p className="mt-2 text-center text-xs text-stone-600 font-medium">
-          Accédez à vos commandes, vos ventes ou votre espace logistique RDC
+          Accédez à vos commandes ou à votre espace agriculteur
         </p>
       </div>
 
@@ -68,18 +68,6 @@ export default function LoginPage() {
               <p className="text-xs text-emerald-800">
                 Bienvenue sur AgroConnect RDC. Redirection en cours...
               </p>
-              <div className="pt-2 flex flex-col gap-2">
-                <Link href="/vendeur/dashboard">
-                  <Button variant="primary" size="sm" className="w-full">
-                    🌾 Accéder à l&apos;Espace Vendeur
-                  </Button>
-                </Link>
-                <Link href="/catalogue">
-                  <Button variant="outline" size="sm" className="w-full">
-                    Voir le Catalogue Produits
-                  </Button>
-                </Link>
-              </div>
             </div>
           ) : (
             <form onSubmit={handleLogin} className="space-y-5">
@@ -90,14 +78,13 @@ export default function LoginPage() {
               )}
 
               <Input
-                label="Numéro de Téléphone (RDC) *"
-                placeholder="+243 81 234 5678"
-                type="tel"
+                label="Adresse email *"
+                placeholder="vous@exemple.com"
+                type="email"
                 required
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                leftIcon={<IconPhone className="w-4 h-4 text-stone-400" />}
-                helperText="Format : +243 suivi de votre numéro (Vodacom, Orange, Airtel, Africell)"
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
               />
 
               <div>
@@ -105,16 +92,23 @@ export default function LoginPage() {
                   label="Mot de passe *"
                   type={showPassword ? 'text' : 'password'}
                   required
-                  placeholder="••••••••"
+                  placeholder="Saisissez votre mot de passe"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   rightIcon={
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="text-xs text-stone-500 hover:text-stone-800 font-medium focus:outline-none cursor-pointer"
+                      aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                      aria-pressed={showPassword}
+                      title={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                      className="rounded text-stone-500 hover:text-stone-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-700 cursor-pointer"
                     >
-                      {showPassword ? 'Masquer' : 'Afficher'}
+                      {showPassword ? (
+                        <IconEyeOff className="w-5 h-5" aria-hidden="true" />
+                      ) : (
+                        <IconEye className="w-5 h-5" aria-hidden="true" />
+                      )}
                     </button>
                   }
                 />
@@ -144,7 +138,10 @@ export default function LoginPage() {
 
           <div className="mt-6 pt-6 border-t border-stone-100 text-center text-xs text-stone-500">
             <span>Vous n&apos;avez pas encore de compte ? </span>
-            <Link href="/inscription" className="text-orange-600 hover:text-orange-700 font-bold">
+            <Link
+              href={redirectPath ? `/inscription?redirect=${encodeURIComponent(redirectPath)}` : '/inscription'}
+              className="text-orange-600 hover:text-orange-700 font-bold"
+            >
               Créer un compte
             </Link>
           </div>
@@ -156,5 +153,19 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-stone-50 text-sm text-stone-600">
+          Chargement de la page de connexion…
+        </div>
+      }
+    >
+      <LoginForm />
+    </Suspense>
   );
 }
