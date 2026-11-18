@@ -14,9 +14,10 @@ export function Hero() {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     const query = new URLSearchParams();
-    if (searchTerm.trim()) query.set('q', searchTerm.trim());
+    if (searchTerm.trim()) query.set('search', searchTerm.trim());
     if (selectedProvince) query.set('province', selectedProvince);
-    router.push(`/recherche?${query.toString()}`);
+    const queryString = query.toString();
+    router.push(queryString ? `/catalogue?${queryString}` : '/catalogue');
   };
 
   return (
@@ -47,8 +48,8 @@ export function Hero() {
             </h1>
 
             <p className="text-lg text-stone-600 mb-8 leading-relaxed max-w-2xl font-normal">
-              AgroConnect réunit producteurs ruraux, revendeurs urbains, fournisseurs d&apos;intrants et acheteurs
-              à travers les 26 provinces de la RDC. Consultez les prix et commandez en Francs Congolais.
+              AgroConnect relie les agriculteurs vendeurs aux acheteurs à travers les 26 provinces de la RDC.
+              Consultez le catalogue et les prix en francs congolais.
             </p>
 
             {/* Quick Search Form */}
@@ -98,11 +99,11 @@ export function Hero() {
               </div>
               <div className="flex items-center gap-2">
                 <IconCheck className="w-4 h-4 text-emerald-700 shrink-0" />
-                <span>Stock unique partagé (Gros & Détail)</span>
+                <span>Stock unique et prix par quantité</span>
               </div>
               <div className="flex items-center gap-2">
                 <IconCheck className="w-4 h-4 text-emerald-700 shrink-0" />
-                <span>Taux de change figé par transaction</span>
+                <span>Prix affichés en CDF</span>
               </div>
             </div>
           </div>
