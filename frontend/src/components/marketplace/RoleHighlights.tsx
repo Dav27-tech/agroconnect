@@ -1,43 +1,25 @@
 import React from 'react';
-import { IconBuilding, IconCart, IconCheck, IconPlant, IconTools } from '../ui/Icons';
+import { IconCart, IconCheck, IconPlant } from '../ui/Icons';
 
 export function RoleHighlights() {
   const roles = [
     {
-      title: 'Agriculteurs & Producteurs',
+      title: 'Vendeurs agricoles',
       icon: <IconPlant className="w-6 h-6" aria-hidden="true" />,
-      tag: 'Vente Directe',
+      tag: 'Vendez vos produits',
       color: 'border-emerald-200 bg-emerald-50/50',
       description:
-        'Publiez vos récoltes sans intermédiaire prédateur. Définissez librement vos prix de gros et de détail et vos unités de vente.',
-      features: ['Fixation libre des prix', 'Stock unique synchronisé', 'Paiement direct sécurisé'],
+        'Publiez vos produits, gérez votre stock et fixez vos prix en CDF. Les acheteurs commandent directement depuis le catalogue.',
+      features: ['Publication de vos offres', 'Gestion du stock', 'Visibilité dans le catalogue'],
     },
     {
-      title: 'Revendeurs & Grossistes',
-      icon: <IconBuilding className="w-6 h-6" aria-hidden="true" />,
-      tag: 'Distribution & Services',
-      color: 'border-amber-200 bg-amber-50/50',
-      description:
-        'Achetez en gros et revendez aux particuliers et professionnels en offrant des services à valeur ajoutée (tri, lavage, livraison express).',
-      features: ['Gestion de stock autonome', 'Services de conditionnement', 'Marge commerciale maîtrisée'],
-    },
-    {
-      title: 'Fournisseurs d\'Intrants',
-      icon: <IconTools className="w-6 h-6" aria-hidden="true" />,
-      tag: 'Intrants & Outillage',
-      color: 'border-sky-200 bg-sky-50/50',
-      description:
-        'Distribuez semences certifiées, fertilisants, engrais et matériel agricole aux agriculteurs et coopératives à travers le pays.',
-      features: ['Catalogue outillage & semences', 'Commandes institutionnelles', 'Conseils agronomiques'],
-    },
-    {
-      title: 'Acheteurs B2B & Ménages',
+      title: 'Acheteurs',
       icon: <IconCart className="w-6 h-6" aria-hidden="true" />,
-      tag: 'Consommation & Transformation',
+      tag: 'Achats directs',
       color: 'border-stone-200 bg-stone-50',
       description:
-        'Commandez auprès de plusieurs vendeurs en un seul panier unifié. Suivez vos sous-commandes et livraisons en temps réel.',
-      features: ['Paiement centralisé', 'Paiement Mobile Money', 'Traçabilité province par province'],
+        'Parcourez les offres agricoles, comparez les vendeurs et commandez les produits dont vous avez besoin.',
+      features: ['Catalogue multi-vendeurs', 'Panier unique', 'Prix affichés en CDF'],
     },
   ];
 
@@ -49,15 +31,14 @@ export function RoleHighlights() {
             L&apos;Écosystème AgroConnect
           </span>
           <h2 className="text-3xl sm:text-4xl font-black text-stone-900 mt-4 mb-4">
-            Une place de marché équitable pour chaque maillon agricole
+            Une place de marché pour vendeurs et acheteurs
           </h2>
           <p className="text-base text-stone-600">
-            AgroConnect n&apos;achète ni ne revend de produits. Notre rôle est de fournir l&apos;infrastructure technologique,
-            bancaire et logistique permettant à chacun de prospérer.
+            AgroConnect ne revend aucun produit. Les vendeurs publient leurs offres et les acheteurs commandent directement depuis le catalogue.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+        <div className="mx-auto grid max-w-5xl grid-cols-1 gap-6 md:grid-cols-2">
           {roles.map((role) => (
             <div
               key={role.title}
