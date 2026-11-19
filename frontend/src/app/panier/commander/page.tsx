@@ -14,8 +14,29 @@ import { IconCheck, IconShieldCheck, IconPhone, IconTruck } from '../../../compo
 import { ParentOrder } from '../../../types';
 import { api } from '../../../services/api';
 
+type MobileMoneyProvider = 'M_PESA' | 'ORANGE_MONEY' | 'AIRTEL_MONEY' | 'AFRIMONEY';
+type CheckoutPaymentState = {
+  payment?: Awaited<ReturnType<typeof api.payments.initiateOrderPayment>>;
+  idempotencyKey?: string;
+  error?: string;
+};
+
+const paymentProviderLabels: Record<MobileMoneyProvider, string> = {
+  M_PESA: 'M-Pesa',
+  ORANGE_MONEY: 'Orange Money',
+  AIRTEL_MONEY: 'Airtel Money',
+  AFRIMONEY: 'Afrimoney',
+};
+
 export default function CheckoutPage() {
-  const { items, isCartHydrated, calculation, clearCart } = useCart();
+  const {
+    items,
+    isCartHydrated,
+    calculation,
+    isLoadingCalculation,
+    clearCart,
+    refreshCalculation,
+  } = useCart();
   const { user, isAdmin, isLoading: isAuthLoading } = useAuth();
 
   const [province, setProvince] = useState<string>('');
@@ -29,6 +50,10 @@ export default function CheckoutPage() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [confirmedOrder, setConfirmedOrder] = useState<ParentOrder | null>(null);
+  const [paymentProvider, setPaymentProvider] = useState<MobileMoneyProvider>('M_PESA');
+  const [paymentPhone, setPaymentPhone] = useState<string>(user?.phoneNumber || '');
+  const [paymentStates, setPaymentStates] = useState<Record<string, CheckoutPaymentState>>({});
+  const [payingSubOrderId, setPayingSubOrderId] = useState<string | null>(null);
   const orderIdempotencyKey = useRef<string | null>(null);
 
   if (!isCartHydrated || isAuthLoading) {
@@ -75,7 +100,13 @@ export default function CheckoutPage() {
     );
   }
 
-  const totalCdf = formatCdfPrice(calculation?.totals.totalCdf ?? 0);
+  const totalAmountCdf = calculation?.totals.totalCdf;
+  const totalCdf = formatCdfPrice(totalAmountCdf ?? 0);
+  const canSubmitOrder = !isLoadingCalculation
+    && calculation !== null
+    && totalAmountCdf !== undefined
+    && totalAmountCdf > 0
+    && !calculation.hasStockShortage;
 
   const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -102,11 +133,79 @@ export default function CheckoutPage() {
       orderIdempotencyKey.current ??= crypto.randomUUID();
       const order = await api.orders.create(payload, orderIdempotencyKey.current);
       setConfirmedOrder(order);
-        clearCart();
+      clearCart();
+      const attempts = await Promise.all(order.subOrders.map(async (subOrder) => {
+        const idempotencyKey = crypto.randomUUID();
+        try {
+          const payment = await api.payments.initiateOrderPayment({
+            subOrderId: subOrder.id,
+            provider: paymentProvider,
+            customerPhoneNumber: paymentPhone || user?.phoneNumber || '',
+          }, idempotencyKey);
+          return [subOrder.id, { payment, idempotencyKey }] as const;
+        } catch (error) {
+          return [subOrder.id, {
+            idempotencyKey,
+            error: error instanceof Error ? error.message : 'Impossible d’initier le paiement.',
+          }] as const;
+        }
+      }));
+      setPaymentStates(Object.fromEntries(attempts));
     } catch (err) {
       setErrorMessage((err as Error).message || 'Erreur lors de la création de la commande');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const retrySubOrderPayment = async (subOrderId: string) => {
+    setPayingSubOrderId(subOrderId);
+    setPaymentStates((current) => ({ ...current, [subOrderId]: { ...current[subOrderId], error: undefined } }));
+    const previousState = paymentStates[subOrderId];
+    const idempotencyKey = previousState?.payment?.status === 'FAILED'
+      ? crypto.randomUUID()
+      : previousState?.idempotencyKey ?? crypto.randomUUID();
+    try {
+      const payment = await api.payments.initiateOrderPayment({
+        subOrderId,
+        provider: paymentProvider,
+        customerPhoneNumber: paymentPhone || user?.phoneNumber || '',
+      }, idempotencyKey);
+      setPaymentStates((current) => ({ ...current, [subOrderId]: { payment, idempotencyKey } }));
+    } catch (error) {
+      setPaymentStates((current) => ({
+        ...current,
+        [subOrderId]: {
+          ...current[subOrderId],
+          idempotencyKey,
+          error: error instanceof Error ? error.message : 'Impossible d’initier le paiement.',
+        },
+      }));
+    } finally {
+      setPayingSubOrderId(null);
+    }
+  };
+
+  const refreshPaymentStatus = async (subOrderId: string) => {
+    const currentPayment = paymentStates[subOrderId]?.payment;
+    if (!currentPayment) return;
+    setPayingSubOrderId(subOrderId);
+    try {
+      const payment = await api.payments.verify(currentPayment.transactionId);
+      setPaymentStates((current) => ({
+        ...current,
+        [subOrderId]: { ...current[subOrderId], payment },
+      }));
+    } catch (error) {
+      setPaymentStates((current) => ({
+        ...current,
+        [subOrderId]: {
+          ...current[subOrderId],
+          error: error instanceof Error ? error.message : 'Impossible de vérifier le paiement.',
+        },
+      }));
+    } finally {
+      setPayingSubOrderId(null);
     }
   };
 
@@ -148,8 +247,8 @@ export default function CheckoutPage() {
               </span>
               <h2 className="text-2xl font-black text-emerald-950">Commande enregistrée</h2>
               <p className="text-xs text-stone-600 max-w-lg mx-auto">
-                Votre commande <strong>{confirmedOrder.orderNumber}</strong> est enregistrée avec le statut en attente.
-                Aucun paiement n&apos;a été demandé ni confirmé; les paiements ne sont pas connectés dans cette version.
+                Votre commande <strong>{confirmedOrder.orderNumber}</strong> est enregistrée. Après confirmation du débit,
+                chaque sous-commande déclenche un transfert vers le numéro Mobile Money du vendeur concerné.
               </p>
             </div>
 
@@ -191,10 +290,58 @@ export default function CheckoutPage() {
                       <p className="text-xs text-stone-600 mt-0.5">Vendeur : {sub.sellerName}</p>
                     </div>
 
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs font-bold text-stone-900">
-                        {sub.subtotalCdf.toLocaleString('fr-FR')} FC
-                      </span>
+                    <div className="flex flex-col items-start gap-2 sm:items-end">
+                      <span className="text-xs font-bold text-stone-900">{formatCdfPrice(sub.subtotalCdf)}</span>
+                      {paymentStates[sub.id]?.payment?.status === 'SUCCEEDED'
+                        && paymentStates[sub.id]?.payment?.payoutStatus === 'SUCCEEDED' ? (
+                        <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-bold text-emerald-800">
+                          Vendeur payé
+                        </span>
+                      ) : (
+                        <div className="flex flex-wrap gap-2">
+                          {paymentStates[sub.id]?.payment?.status && (
+                            <span className="self-center text-[10px] font-semibold text-amber-800">
+                              {paymentStates[sub.id]?.payment?.status === 'FAILED'
+                                ? 'Débit refusé'
+                                : paymentStates[sub.id]?.payment?.status === 'SUCCEEDED'
+                                  ? paymentStates[sub.id]?.payment?.payoutStatus === 'FAILED'
+                                    ? 'Transfert vendeur en échec'
+                                    : 'Débit confirmé · transfert vendeur en attente'
+                                  : 'Paiement en attente'}
+                            </span>
+                          )}
+                          {(paymentStates[sub.id]?.payment?.status === 'PENDING'
+                            || (paymentStates[sub.id]?.payment?.status === 'SUCCEEDED'
+                              && paymentStates[sub.id]?.payment?.payoutStatus !== 'SUCCEEDED'
+                              && paymentStates[sub.id]?.payment?.payoutStatus !== 'FAILED')) && (
+                            <button
+                              type="button"
+                              onClick={() => void refreshPaymentStatus(sub.id)}
+                              disabled={payingSubOrderId === sub.id}
+                              className="rounded-lg border border-stone-300 px-2.5 py-1.5 text-[10px] font-bold text-stone-700 disabled:opacity-50"
+                            >
+                              Vérifier
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => void retrySubOrderPayment(sub.id)}
+                            disabled={payingSubOrderId === sub.id || (
+                              paymentStates[sub.id]?.payment?.status !== undefined
+                              && paymentStates[sub.id]?.payment?.status !== 'FAILED'
+                            )}
+                            className="rounded-lg bg-emerald-800 px-2.5 py-1.5 text-[10px] font-bold text-white disabled:opacity-50"
+                          >
+                            {payingSubOrderId === sub.id ? 'Envoi…' : paymentStates[sub.id]?.payment ? 'Réessayer' : 'Payer le vendeur'}
+                          </button>
+                        </div>
+                      )}
+                      {paymentStates[sub.id]?.error && (
+                        <p role="alert" className="max-w-xs text-right text-[10px] text-red-700">{paymentStates[sub.id]?.error}</p>
+                      )}
+                      {paymentStates[sub.id]?.payment?.reference && (
+                        <p className="text-[10px] text-stone-500">Réf. {paymentStates[sub.id]?.payment?.reference}</p>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -307,9 +454,35 @@ export default function CheckoutPage() {
                 </h3>
                 <p className="text-xs text-stone-600">Tous les montants de cette commande sont exprimés en Francs Congolais (CDF).</p>
 
-                <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-                  Le paiement n&apos;est pas disponible dans cette version. La création de commande ne déclenche aucun débit.
-                </p>
+                  <p className="text-xs leading-relaxed text-stone-600">
+                    Chaque sous-commande est débitée séparément. Après confirmation par GoFreshPay, le montant est transféré
+                    au numéro Mobile Money du vendeur concerné. AgroConnect ne prélève pas de commission sur la vente.
+                  </p>
+                  <p className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-xs leading-relaxed text-sky-900">
+                    Après la demande, autorisez le paiement sur votre téléphone via la notification ou le menu USSD de votre opérateur.
+                    Saisissez votre PIN uniquement dans ce canal sécurisé, jamais dans AgroConnect. La commande reste en attente jusqu’à confirmation du paiement.
+                  </p>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <label className="block text-xs font-bold text-stone-700">
+                      Réseau Mobile Money
+                      <select
+                        value={paymentProvider}
+                        onChange={(event) => setPaymentProvider(event.target.value as MobileMoneyProvider)}
+                        className="mt-1.5 w-full rounded-xl border border-stone-300 bg-white px-3 py-2.5 text-sm font-medium"
+                      >
+                        {Object.entries(paymentProviderLabels).map(([value, label]) => (
+                          <option key={value} value={value}>{label}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <Input
+                      label="Numéro à débiter"
+                      value={paymentPhone}
+                      onChange={(event) => setPaymentPhone(event.target.value)}
+                      required
+                      leftIcon={<IconPhone className="h-4 w-4 text-stone-400" />}
+                    />
+                  </div>
               </div>
             </div>
 
@@ -338,9 +511,29 @@ export default function CheckoutPage() {
 
                   <div className="pt-4 border-t border-stone-100 flex items-baseline justify-between">
                     <span className="text-sm font-black text-stone-900">Total à régler :</span>
-                    <p className="text-xl font-black text-emerald-900">{totalCdf}</p>
+                    <p className="text-xl font-black text-emerald-900">
+                      {calculation ? totalCdf : isLoadingCalculation ? 'Calcul…' : 'Indisponible'}
+                    </p>
                   </div>
                 </div>
+
+                {calculation?.hasStockShortage && (
+                  <p role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+                    Le stock disponible ne suffit pas pour un ou plusieurs articles. Modifiez les quantités avant de commander.
+                  </p>
+                )}
+                {!isLoadingCalculation && !calculation && items.length > 0 && (
+                  <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-800">
+                    Le montant n’a pas pu être vérifié. Réessayez le calcul avant de passer commande.
+                    <button
+                      type="button"
+                      onClick={() => void refreshCalculation()}
+                      className="ml-1 font-bold underline"
+                    >
+                      Recalculer
+                    </button>
+                  </div>
+                )}
 
                 <Button
                   type="submit"
@@ -348,14 +541,15 @@ export default function CheckoutPage() {
                   size="lg"
                   className="w-full cursor-pointer shadow-md"
                   isLoading={isLoading}
+                  disabled={!canSubmitOrder || isLoading}
                 >
-                  Créer la commande ({totalCdf})
+                  {isLoadingCalculation ? 'Calcul du montant…' : `Confirmer la commande et payer (${totalCdf})`}
                 </Button>
 
                 <div className="p-3 bg-stone-50 rounded-2xl border border-stone-200 text-[11px] text-stone-600 space-y-1">
                   <p className="font-bold text-stone-800">Règle de transaction AgroConnect :</p>
                   <p>
-                    Aucun paiement n&apos;est exécuté ni confirmé dans cette version.
+                    Le statut de chaque paiement est confirmé uniquement après vérification côté serveur auprès de GoFreshPay.
                   </p>
                 </div>
               </div>
