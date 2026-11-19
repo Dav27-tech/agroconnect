@@ -4,7 +4,10 @@ import { dbManager } from './database/client.js';
 
 async function bootstrap() {
   // Initialisation de la base de données
-  await dbManager.connect();
+  const databaseConnected = await dbManager.connect();
+  if (!databaseConnected) {
+    throw new Error('Le démarrage du backend nécessite une connexion PostgreSQL');
+  }
 
   const app = createApp();
 
@@ -13,7 +16,7 @@ async function bootstrap() {
     console.log(`🌾 Serveur AgroConnect Backend démarré avec succès !`);
     console.log(`📍 Port d'écoute : http://localhost:${env.PORT}`);
     console.log(`🇨🇩 Périmètre : République Démocratique du Congo (RDC)`);
-    console.log(`💱 Devises : CDF / USD (Taux configuré : 1 USD = ${env.DEFAULT_EXCHANGE_RATE} CDF)`);
+    console.log('💱 Devise de la plateforme : CDF');
     console.log(`🩺 Health check : http://localhost:${env.PORT}/api/health`);
     console.log(`📦 API Base : http://localhost:${env.PORT}/api/v1`);
     console.log('====================================================');
