@@ -8,6 +8,10 @@ build/
 .next/
 out/
 
+# User-uploaded media
+/uploads/
+/backend/uploads/
+
 # Environment variables
 .env
 .env.local
