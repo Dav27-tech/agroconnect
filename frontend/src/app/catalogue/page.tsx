@@ -1,31 +1,52 @@
 'use client';
 
-import React, { Suspense, useState, useMemo, useEffect } from 'react';
+import React, { Suspense, startTransition, useState, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { PageHeader } from '../../components/layout/PageHeader';
 import { ProductCard } from '../../components/marketplace/ProductCard';
 import { EmptyState } from '../../components/ui/EmptyState';
-import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
-import { IconCategory, IconSearch, IconFilter } from '../../components/ui/Icons';
-import { MOCK_OFFERS, MOCK_CATEGORIES } from '../../data/mockData';
+import { IconSearch } from '../../components/ui/Icons';
 import { DRC_PROVINCES } from '../../constants/drc';
-import { SellerType, SellerOfferItem, Category } from '../../types';
+import { SellerOfferItem, Category } from '../../types';
 import { api } from '../../services/api';
+
+function normalizeSearchText(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLocaleLowerCase()
+    .trim();
+}
 
 function CatalogueContent() {
   const searchParams = useSearchParams();
   const categorySlug = searchParams.get('category');
-  const [categories, setCategories] = useState<Category[]>(MOCK_CATEGORIES);
-  const [offers, setOffers] = useState<SellerOfferItem[]>(MOCK_OFFERS);
+  const initialSearchQuery = searchParams.get('search') || searchParams.get('q') || '';
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [offers, setOffers] = useState<SellerOfferItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const offersPerPage = 9;
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [selectedProvince, setSelectedProvince] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState(initialSearchQuery);
+  const [selectedCategoryOverride, setSelectedCategoryOverride] = useState<string | null>(null);
+  const selectedCategory = selectedCategoryOverride
+    ?? categories.find((category) => category.slug === categorySlug)?.name
+    ?? 'all';
+  const [selectedProvince, setSelectedProvince] = useState<string>(searchParams.get('province') || 'all');
   const [selectedSellerType, setSelectedSellerType] = useState<string>('all');
   const [sortBy, setSortBy] = useState<string>('featured');
-  const [showMobileFilters, setShowMobileFilters] = useState(false);
+
+  useEffect(() => {
+    const nextSearchQuery = searchParams.get('search') || searchParams.get('q') || '';
+    const nextProvince = searchParams.get('province') || 'all';
+    startTransition(() => {
+      setSearchQuery(nextSearchQuery);
+      setSelectedProvince(nextProvince);
+      setCurrentPage(1);
+    });
+  }, [searchParams]);
 
   // Chargement des données réelles depuis le backend
   useEffect(() => {
@@ -36,10 +57,10 @@ function CatalogueContent() {
           api.categories.list(),
           api.offers.list(),
         ]);
-        if (cats && cats.length > 0) setCategories(cats);
-        if (offs && offs.length > 0) setOffers(offs);
+        setCategories(cats);
+        setOffers(offs);
       } catch (err) {
-        console.warn('Utilisation des données locales de catalogue :', err);
+        console.error('Erreur chargement du catalogue :', err);
       } finally {
         setIsLoading(false);
       }
@@ -47,25 +68,21 @@ function CatalogueContent() {
     loadData();
   }, []);
 
-  useEffect(() => {
-    if (categorySlug && categories.length > 0) {
-      const match = categories.find((c) => c.slug === categorySlug);
-      if (match) setSelectedCategory(match.name);
-    }
-  }, [categorySlug, categories]);
-
   // Filtrage combiné
   const filteredOffers = useMemo(() => {
     return offers
       .filter((offer) => {
         // Recherche textuelle
         if (searchQuery.trim()) {
-          const q = searchQuery.toLowerCase();
-          const matchesName = offer.productName?.toLowerCase().includes(q);
-          const matchesCategory = offer.categoryName?.toLowerCase().includes(q);
-          const matchesSeller = offer.sellerName?.toLowerCase().includes(q);
-          const matchesCity = offer.originCity?.toLowerCase().includes(q);
-          if (!matchesName && !matchesCategory && !matchesSeller && !matchesCity) {
+          const queryTerms = normalizeSearchText(searchQuery).split(/\s+/);
+          const searchableText = [
+            offer.productName,
+            offer.categoryName,
+            offer.sellerName,
+            offer.originCity,
+            offer.originProvince,
+          ].map((value) => normalizeSearchText(value || '')).join(' ');
+          if (!queryTerms.every((term) => searchableText.includes(term))) {
             return false;
           }
         }
@@ -98,20 +115,23 @@ function CatalogueContent() {
       });
   }, [offers, searchQuery, selectedCategory, selectedProvince, selectedSellerType, sortBy, categories]);
 
+  const totalPages = Math.ceil(filteredOffers.length / offersPerPage);
+  const safeCurrentPage = Math.min(currentPage, Math.max(totalPages, 1));
+  const visibleOffers = filteredOffers.slice(
+    (safeCurrentPage - 1) * offersPerPage,
+    safeCurrentPage * offersPerPage
+  );
+  const firstVisibleOffer = filteredOffers.length ? (safeCurrentPage - 1) * offersPerPage + 1 : 0;
+  const lastVisibleOffer = Math.min(safeCurrentPage * offersPerPage, filteredOffers.length);
+
   const resetFilters = () => {
     setSearchQuery('');
-    setSelectedCategory('all');
+    setSelectedCategoryOverride('all');
     setSelectedProvince('all');
     setSelectedSellerType('all');
     setSortBy('featured');
+    setCurrentPage(1);
   };
-
-  const hasActiveFilters =
-    searchQuery !== '' ||
-    selectedCategory !== 'all' ||
-    selectedProvince !== 'all' ||
-    selectedSellerType !== 'all' ||
-    sortBy !== 'featured';
 
   return (
     <div className="bg-stone-50 min-h-screen pb-20">
@@ -125,184 +145,149 @@ function CatalogueContent() {
       />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
-        {/* Top Controls Bar */}
-        <div className="bg-white p-4 rounded-2xl border border-stone-200 mb-8 flex flex-col md:flex-row items-center justify-between gap-4 shadow-xs">
-          {/* Quick Search Input */}
-          <div className="w-full md:w-96">
-            <Input
-              placeholder="Rechercher manioc, maïs, haricot..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              leftIcon={<IconSearch className="w-4 h-4" />}
-            />
-          </div>
-
-          <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end">
-            {/* Mobile Filter Toggle */}
-            <Button
-              variant="outline"
-              size="sm"
-              className="lg:hidden"
-              leftIcon={<IconFilter className="w-4 h-4" />}
-              onClick={() => setShowMobileFilters(!showMobileFilters)}
+        <section
+          aria-label="Recherche et filtres du catalogue"
+          className="mb-8 rounded-2xl border border-stone-200 bg-white p-4 shadow-sm sm:p-6"
+        >
+          <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 className="text-base font-bold text-stone-900">Trouvez votre produit</h2>
+              <p className="mt-1 text-xs text-stone-500">
+                Recherchez par produit, vendeur ou localité.
+              </p>
+            </div>
+            <span
+              aria-live="polite"
+              className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-900"
             >
-              Filtres
-            </Button>
-
-            {/* Tri */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-stone-500 whitespace-nowrap">Trier par :</span>
+              {isLoading
+                ? 'Chargement des offres…'
+                : `${filteredOffers.length} offre${filteredOffers.length > 1 ? 's' : ''}`}
+            </span>
+          </div>
+          <div className="grid grid-cols-1 items-end gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="min-w-0 lg:col-span-2">
+              <Input
+                aria-label="Rechercher un produit"
+                label="Recherche"
+                placeholder="Ex. maïs, tomates, Bukavu"
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="h-12"
+                leftIcon={<IconSearch className="h-4 w-4" />}
+              />
+            </div>
+            <label className="block min-w-0 text-[11px] font-bold uppercase tracking-wide text-stone-600">
+              Catégorie
               <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                className="text-xs bg-white border border-stone-300 rounded-lg px-2.5 py-1.5 text-stone-800 font-medium focus:outline-none focus:ring-1 focus:ring-emerald-700"
+                aria-label="Catégorie"
+                value={selectedCategory}
+                onChange={(e) => {
+                  setSelectedCategoryOverride(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="mt-1.5 h-12 w-full rounded-xl border border-stone-300 bg-white px-3 text-sm font-medium normal-case tracking-normal text-stone-800 outline-none transition focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20"
               >
-                <option value="featured">Pertinence AgroConnect</option>
-                <option value="price-asc">Prix le plus bas (CDF)</option>
-                <option value="price-desc">Prix le plus haut (CDF)</option>
+                <option value="all">Toutes les catégories</option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.name}>{category.name}</option>
+                ))}
+              </select>
+            </label>
+            <label className="block min-w-0 text-[11px] font-bold uppercase tracking-wide text-stone-600">
+              Province
+              <select
+                aria-label="Province"
+                value={selectedProvince}
+                onChange={(e) => {
+                  setSelectedProvince(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="mt-1.5 h-12 w-full rounded-xl border border-stone-300 bg-white px-3 text-sm font-medium normal-case tracking-normal text-stone-800 outline-none transition focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20"
+              >
+                <option value="all">Toutes les provinces</option>
+                {DRC_PROVINCES.map((province) => (
+                  <option key={province} value={province}>{province}</option>
+                ))}
+              </select>
+            </label>
+            <label className="block min-w-0 text-[11px] font-bold uppercase tracking-wide text-stone-600">
+              Trier par
+              <select
+                aria-label="Trier par"
+                value={sortBy}
+                onChange={(e) => {
+                  setSortBy(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="mt-1.5 h-12 w-full rounded-xl border border-stone-300 bg-white px-3 text-sm font-medium normal-case tracking-normal text-stone-800 outline-none transition focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20"
+              >
+                <option value="featured">Pertinence</option>
+                <option value="price-asc">Prix croissant</option>
+                <option value="price-desc">Prix décroissant</option>
                 <option value="stock-desc">Stock disponible</option>
               </select>
-            </div>
+            </label>
           </div>
-        </div>
+        </section>
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          {/* Sidebar Filters (Desktop & Mobile Dropdown) */}
-          <aside className={`lg:block ${showMobileFilters ? 'block mb-6' : 'hidden'}`}>
-            <div className="bg-white p-6 rounded-2xl border border-stone-200 space-y-6 shadow-xs">
-              <div className="flex items-center justify-between border-b border-stone-100 pb-3">
-                <h3 className="text-sm font-bold text-stone-900 flex items-center gap-2">
-                  <IconFilter className="w-4 h-4 text-emerald-800" />
-                  <span>Filtrer les offres</span>
-                </h3>
-                {hasActiveFilters && (
-                  <button
-                    type="button"
-                    onClick={resetFilters}
-                    className="text-[11px] text-orange-600 font-bold hover:underline cursor-pointer"
-                  >
-                    Réinitialiser
-                  </button>
-                )}
-              </div>
-
-              {/* Catégories / Filières */}
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-stone-500 mb-2.5">
-                  Filières Agricoles
-                </label>
-                <div className="space-y-1">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedCategory('all')}
-                    className={`w-full text-left px-3 py-2 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center justify-between ${
-                      selectedCategory === 'all'
-                        ? 'bg-emerald-800 text-white'
-                        : 'text-stone-700 hover:bg-stone-100'
-                    }`}
-                  >
-                    <span>Toutes les filières</span>
-                    <span className="text-[10px] opacity-80">{offers.length}</span>
-                  </button>
-                  {categories.map((cat) => {
-                    const isSelected = selectedCategory === cat.name || selectedCategory === cat.slug;
-                    return (
-                      <button
-                        key={cat.id}
-                        type="button"
-                        onClick={() => setSelectedCategory(cat.name)}
-                        className={`w-full text-left px-3 py-2 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center justify-between ${
-                          isSelected
-                            ? 'bg-emerald-800 text-white'
-                            : 'text-stone-700 hover:bg-stone-100'
-                        }`}
-                      >
-                        <span className="truncate">{cat.name}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Province d'Origine (RDC) */}
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-stone-500 mb-2">
-                  Province de production (RDC)
-                </label>
-                <select
-                  value={selectedProvince}
-                  onChange={(e) => setSelectedProvince(e.target.value)}
-                  className="w-full text-xs bg-stone-50 border border-stone-200 rounded-lg p-2 text-stone-800 focus:outline-none focus:ring-1 focus:ring-emerald-700"
-                >
-                  <option value="all">Toutes les 26 provinces</option>
-                  {DRC_PROVINCES.map((prov) => (
-                    <option key={prov} value={prov}>
-                      {prov}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Type d'Acteur / Vendeur */}
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-stone-500 mb-2">
-                  Profil du Vendeur
-                </label>
-                <div className="space-y-1.5">
-                  {[
-                    { value: 'all', label: 'Tous les acteurs' },
-                    { value: 'FARMER', label: 'Agriculteurs & Coopératives' },
-                    { value: 'RESELLER', label: 'Revendeurs & Grossistes' },
-                    { value: 'SUPPLIER', label: 'Fournisseurs d\'Intrants' },
-                  ].map((role) => (
-                    <label key={role.value} className="flex items-center gap-2 text-xs text-stone-700 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="sellerType"
-                        value={role.value}
-                        checked={selectedSellerType === role.value}
-                        onChange={(e) => setSelectedSellerType(e.target.value)}
-                        className="text-emerald-800 focus:ring-emerald-700"
-                      />
-                      <span>{role.label}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
+        <div>
+          {isLoading ? (
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {Array.from({ length: offersPerPage }, (_, idx) => (
+                <div key={idx} className="bg-white rounded-2xl p-4 border border-stone-200 h-80 animate-pulse" />
+              ))}
             </div>
-          </aside>
-
-          {/* Product Grid Area */}
-          <div className="lg:col-span-3">
-            {isLoading ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {[1, 2, 3, 4, 5, 6].map((idx) => (
-                  <div key={idx} className="bg-white rounded-2xl p-4 border border-stone-200 h-80 animate-pulse" />
+          ) : filteredOffers.length > 0 ? (
+            <div>
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                {visibleOffers.map((offer) => (
+                  <ProductCard key={offer.id} offer={offer} />
                 ))}
               </div>
-            ) : filteredOffers.length > 0 ? (
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-xs text-stone-500 font-semibold">
-                    {filteredOffers.length} offre{filteredOffers.length > 1 ? 's' : ''} agricole
-                    {filteredOffers.length > 1 ? 's' : ''} répertoriée{filteredOffers.length > 1 ? 's' : ''}
-                  </span>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {filteredOffers.map((offer) => (
-                    <ProductCard key={offer.id} offer={offer} />
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <EmptyState
-                title="Aucune offre trouvée"
-                description="Aucun produit agricole ne correspond à vos critères de recherche actuels dans les 26 provinces de la RDC."
-                actionText="Réinitialiser les filtres"
-                onAction={resetFilters}
-              />
-            )}
-          </div>
+              {totalPages > 1 && (
+                <nav
+                  aria-label="Pagination des offres"
+                  className="mt-8 flex flex-col items-center justify-between gap-4 border-t border-stone-200 pt-6 sm:flex-row"
+                >
+                  <p aria-live="polite" className="text-sm text-stone-600">
+                    Affichage {firstVisibleOffer}–{lastVisibleOffer} sur {filteredOffers.length} offres
+                  </p>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                      disabled={safeCurrentPage === 1}
+                      className="rounded-xl border border-stone-300 bg-white px-4 py-2 text-sm font-semibold text-stone-700 transition hover:border-emerald-700 hover:text-emerald-800 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Précédent
+                    </button>
+                    <span className="min-w-20 text-center text-sm font-semibold text-stone-700">
+                      Page {safeCurrentPage} sur {totalPages}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                      disabled={safeCurrentPage === totalPages}
+                      className="rounded-xl border border-emerald-800 bg-emerald-800 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Suivant
+                    </button>
+                  </div>
+                </nav>
+              )}
+            </div>
+          ) : (
+            <EmptyState
+              title="Aucune offre trouvée"
+              description="Aucun produit ne correspond à ces critères. Essayez un autre terme ou élargissez les filtres."
+              actionText="Réinitialiser les filtres"
+              onAction={resetFilters}
+            />
+          )}
         </div>
       </div>
     </div>
