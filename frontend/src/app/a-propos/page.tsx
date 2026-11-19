@@ -14,19 +14,19 @@ export default function AboutPage() {
       title: 'Intermédiation Neutre & Transparente',
       icon: <IconShieldCheck className="w-6 h-6" aria-hidden="true" />,
       description:
-        'AgroConnect n\'achète, ne possède, ne stocke ni ne revend aucun produit agricole. Chaque agriculteur ou revendeur reste propriétaire exclusif de son stock et fixe souverainement ses prix.',
+        'AgroConnect n\'achète, ne possède, ne stocke ni ne revend aucun produit agricole. Chaque vendeur reste propriétaire de son stock et fixe ses prix.',
     },
     {
       title: 'Éradication des Pertes Post-Récolte',
       icon: <IconPlant className="w-6 h-6" aria-hidden="true" />,
       description:
-        'En connectant directement les bassins de production ruraux aux acheteurs urbains et industriels par précommandes fermes, nous réduisons le gaspillage alimentaire de nos terroirs.',
+        'En connectant directement les vendeurs agricoles aux acheteurs, nous aidons les produits à rejoindre les personnes qui en ont besoin.',
     },
     {
-      title: 'Sécurisation Monétaire Bi-Devise',
+      title: 'Prix en Francs Congolais',
       icon: <IconBuilding className="w-6 h-6" aria-hidden="true" />,
       description:
-        'Gestion transparente du Franc Congolais (CDF) et du Dollar Américain (USD). Le taux de change est gravé et figé au moment de la transaction, protégeant vendeurs et acheteurs.',
+        'Les prix et les commandes sont affichés en Francs Congolais (CDF), pour une lecture claire des montants.',
     },
     {
       title: 'Inclusion des Petits Producteurs',
@@ -130,12 +130,12 @@ export default function AboutPage() {
             Rejoignez la Révolution Agricole Congolaise
           </h3>
           <p className="text-sm text-stone-600 mb-8 max-w-xl mx-auto leading-relaxed">
-            Que vous soyez agriculteur à Kikwit, grossiste à Matadi, meunier à Lubumbashi ou distributeur à Kinshasa, AgroConnect est votre outil commercial.
+            Que vous souhaitiez vendre vos produits agricoles ou acheter auprès des vendeurs locaux, AgroConnect est là pour vous.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-4">
             <Link href="/inscription">
               <Button variant="accent" size="lg">
-                Créer un compte professionnel
+                Créer un compte
               </Button>
             </Link>
             <Link href="/catalogue">
