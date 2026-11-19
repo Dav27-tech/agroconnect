@@ -6,7 +6,7 @@ export const createOrderSchema = z.object({
     quantity: z.number().finite().positive().max(1_000_000),
     saleType: z.enum(['RETAIL', 'WHOLESALE']),
   })).min(1).max(50),
-  currency: z.enum(['CDF', 'USD']).optional(),
+  currency: z.literal('CDF').optional(),
   deliveryProvince: z.string().min(1).max(100),
   deliveryCity: z.string().min(1).max(120),
   deliveryCommune: z.string().max(120).optional(),
