@@ -33,6 +33,39 @@ export type SubOrderStatus =
   | 'REJECTED'
   | 'CANCELLED';
 
+export type PaymentStatus = 'PENDING' | 'PROCESSING' | 'SUCCEEDED' | 'FAILED';
+
+export interface PaymentAttempt {
+  transactionId: string;
+  reference: string;
+  purpose: 'ORDER' | 'SUBSCRIPTION' | 'PROMOTION';
+  orderNumber?: string;
+  amountCdf?: number;
+  currency: 'CDF';
+  status: PaymentStatus;
+  payoutStatus?: 'PENDING' | 'PROCESSING' | 'SUCCEEDED' | 'FAILED';
+  payoutReference?: string;
+  providerTransactionId?: string;
+  verifiedAt?: string;
+}
+
+export interface SellerSubscriptionStatus {
+  startsAt: string | null;
+  expiresAt: string | null;
+  amountCdf?: number;
+  monthlyPriceCdf?: number;
+  currency?: 'CDF';
+  current: boolean;
+}
+
+export interface PromotionPackage {
+  id: string;
+  name: string;
+  durationDays: number;
+  priceCdf: number;
+  isActive?: boolean;
+}
+
 export interface User {
   id: string;
   phoneNumber: string;
@@ -101,6 +134,7 @@ export interface SellerProfile {
   city: string;
   address?: string;
   phone?: string;
+  phoneNumber?: string;
   verificationStatus: 'PENDING' | 'UNDER_REVIEW' | 'VERIFIED' | 'REJECTED';
   commissionRate?: number;
   rating?: number;
