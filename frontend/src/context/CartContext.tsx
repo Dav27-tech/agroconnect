@@ -61,10 +61,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const refreshCalculation = useCallback(async () => {
     if (items.length === 0) {
       setCalculation(null);
+      setIsLoadingCalculation(false);
       return;
     }
 
     setIsLoadingCalculation(true);
+    setCalculation(null);
     try {
       const payload = items.map((i) => ({
         offerId: i.offerId,
