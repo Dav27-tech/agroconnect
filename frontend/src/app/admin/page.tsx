@@ -6,6 +6,8 @@ import { api } from '../../services/api';
 import { PageHeader } from '../../components/layout/PageHeader';
 import { Button } from '../../components/ui/Button';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { formatCdfPrice } from '../../utils/format';
+import { PromotionPackage } from '../../types';
 import {
   IconBasket,
   IconBuilding,
@@ -75,6 +77,14 @@ export default function AdminPage() {
   const [reviewingSellerId, setReviewingSellerId] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+  const [receivingPhoneNumber, setReceivingPhoneNumber] = useState('');
+  const [monthlySubscriptionCdf, setMonthlySubscriptionCdf] = useState('500');
+  const [promotionPackages, setPromotionPackages] = useState<PromotionPackage[]>([]);
+  const [newPackageName, setNewPackageName] = useState('');
+  const [newPackageDays, setNewPackageDays] = useState('7');
+  const [newPackagePrice, setNewPackagePrice] = useState('');
+  const [isSavingPaymentSettings, setIsSavingPaymentSettings] = useState(false);
+  const [isCreatingPackage, setIsCreatingPackage] = useState(false);
 
   useEffect(() => {
     if (isAuthLoading || !isAdmin) return;
@@ -84,12 +94,17 @@ export default function AdminPage() {
       api.admin.getStats(),
       api.admin.listSellerProfiles(statusFilter),
       api.admin.listSellerProfiles('ALL'),
+      api.admin.getPaymentSettings(),
+      api.admin.listPromotionPackages(),
     ])
-      .then(([platformStats, sellerProfiles, allSellers]) => {
+      .then(([platformStats, sellerProfiles, allSellers, paymentSettings, packages]) => {
         if (!mounted) return;
         setStats(platformStats);
         setProfiles(sellerProfiles);
         setSellers(allSellers);
+        setReceivingPhoneNumber(paymentSettings.receivingPhoneNumber ?? '');
+        setMonthlySubscriptionCdf(String(paymentSettings.monthlySubscriptionCdf));
+        setPromotionPackages(packages);
       })
       .catch((error) => {
         if (mounted) setErrorMessage((error as Error).message);
@@ -108,18 +123,78 @@ export default function AdminPage() {
     setErrorMessage('');
     setMessage('');
     try {
-      const [platformStats, sellerProfiles, allSellers] = await Promise.all([
+      const [platformStats, sellerProfiles, allSellers, paymentSettings, packages] = await Promise.all([
         api.admin.getStats(),
         api.admin.listSellerProfiles(statusFilter),
         api.admin.listSellerProfiles('ALL'),
+        api.admin.getPaymentSettings(),
+        api.admin.listPromotionPackages(),
       ]);
       setStats(platformStats);
       setProfiles(sellerProfiles);
       setSellers(allSellers);
+      setReceivingPhoneNumber(paymentSettings.receivingPhoneNumber ?? '');
+      setMonthlySubscriptionCdf(String(paymentSettings.monthlySubscriptionCdf));
+      setPromotionPackages(packages);
     } catch (error) {
       setErrorMessage((error as Error).message);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const savePaymentSettings = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setIsSavingPaymentSettings(true);
+    setErrorMessage('');
+    setMessage('');
+    try {
+      const settings = await api.admin.updatePaymentSettings({
+        receivingPhoneNumber: receivingPhoneNumber.trim() || null,
+        monthlySubscriptionCdf: Number(monthlySubscriptionCdf),
+      });
+      setReceivingPhoneNumber(settings.receivingPhoneNumber ?? '');
+      setMonthlySubscriptionCdf(String(settings.monthlySubscriptionCdf));
+      setMessage('Paramètres des paiements mis à jour.');
+    } catch (error) {
+      setErrorMessage((error as Error).message);
+    } finally {
+      setIsSavingPaymentSettings(false);
+    }
+  };
+
+  const createPromotionPackage = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setIsCreatingPackage(true);
+    setErrorMessage('');
+    setMessage('');
+    try {
+      const created = await api.admin.createPromotionPackage({
+        name: newPackageName.trim(),
+        durationDays: Number(newPackageDays),
+        priceCdf: Number(newPackagePrice),
+      });
+      setPromotionPackages((current) => [...current, created].sort((a, b) => a.durationDays - b.durationDays));
+      setNewPackageName('');
+      setNewPackageDays('7');
+      setNewPackagePrice('');
+      setMessage('Forfait promotionnel créé.');
+    } catch (error) {
+      setErrorMessage((error as Error).message);
+    } finally {
+      setIsCreatingPackage(false);
+    }
+  };
+
+  const togglePromotionPackage = async (pkg: PromotionPackage) => {
+    setErrorMessage('');
+    setMessage('');
+    try {
+      const updated = await api.admin.updatePromotionPackage(pkg.id, { isActive: !pkg.isActive });
+      setPromotionPackages((current) => current.map((item) => item.id === pkg.id ? updated : item));
+      setMessage(updated.isActive ? 'Forfait activé.' : 'Forfait désactivé.');
+    } catch (error) {
+      setErrorMessage((error as Error).message);
     }
   };
 
@@ -461,6 +536,115 @@ export default function AdminPage() {
               ))}
             </div>
           )}
+        </section>
+
+        <section aria-labelledby="payment-settings-title" className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+          <div className="rounded-3xl border border-stone-200 bg-white p-5 shadow-sm sm:p-7">
+            <div className="mb-5">
+              <h2 id="payment-settings-title" className="text-xl font-bold text-stone-900">Paiements AgroConnect</h2>
+              <p className="mt-1 text-sm text-stone-500">Configurez le numéro bénéficiaire et le prix de l’abonnement mensuel, en CDF.</p>
+            </div>
+            <form onSubmit={(event) => void savePaymentSettings(event)} className="space-y-4">
+              <label className="block text-xs font-bold text-stone-700">
+                Numéro Mobile Money bénéficiaire
+                <input
+                  type="tel"
+                  value={receivingPhoneNumber}
+                  onChange={(event) => setReceivingPhoneNumber(event.target.value)}
+                  placeholder="+243..."
+                  pattern="(\+243|0)[0-9]{9}"
+                  className="mt-1.5 w-full rounded-xl border border-stone-300 bg-white px-3 py-2.5 text-sm font-medium"
+                />
+              </label>
+              <label className="block text-xs font-bold text-stone-700">
+                Abonnement vendeur mensuel (CDF)
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  required
+                  value={monthlySubscriptionCdf}
+                  onChange={(event) => setMonthlySubscriptionCdf(event.target.value)}
+                  className="mt-1.5 w-full rounded-xl border border-stone-300 bg-white px-3 py-2.5 text-sm font-medium"
+                />
+              </label>
+              <p className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-xs leading-relaxed text-sky-900">
+                Les abonnements et promotions sont transférés à AgroConnect. Pour une commande, GoFreshPay débite l’acheteur puis AgroConnect transfère le montant au numéro du vendeur.
+              </p>
+              <Button type="submit" variant="primary" size="sm" isLoading={isSavingPaymentSettings}>
+                Enregistrer les paramètres
+              </Button>
+            </form>
+          </div>
+
+          <div className="rounded-3xl border border-stone-200 bg-white p-5 shadow-sm sm:p-7">
+            <div className="mb-5">
+              <h2 className="text-xl font-bold text-stone-900">Forfaits de mise en avant</h2>
+              <p className="mt-1 text-sm text-stone-500">Les vendeurs paient un forfait pour promouvoir une offre pendant une durée définie.</p>
+            </div>
+            <form onSubmit={(event) => void createPromotionPackage(event)} className="grid gap-3 sm:grid-cols-[1.3fr_0.7fr_0.8fr_auto] sm:items-end">
+              <label className="block text-xs font-bold text-stone-700">
+                Nom
+                <input
+                  required
+                  minLength={2}
+                  maxLength={120}
+                  value={newPackageName}
+                  onChange={(event) => setNewPackageName(event.target.value)}
+                  placeholder="À la une - 7 jours"
+                  className="mt-1.5 w-full rounded-xl border border-stone-300 px-3 py-2.5 text-sm"
+                />
+              </label>
+              <label className="block text-xs font-bold text-stone-700">
+                Jours
+                <input
+                  type="number"
+                  min="1"
+                  max="3650"
+                  required
+                  value={newPackageDays}
+                  onChange={(event) => setNewPackageDays(event.target.value)}
+                  className="mt-1.5 w-full rounded-xl border border-stone-300 px-3 py-2.5 text-sm"
+                />
+              </label>
+              <label className="block text-xs font-bold text-stone-700">
+                Prix CDF
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  required
+                  value={newPackagePrice}
+                  onChange={(event) => setNewPackagePrice(event.target.value)}
+                  className="mt-1.5 w-full rounded-xl border border-stone-300 px-3 py-2.5 text-sm"
+                />
+              </label>
+              <Button type="submit" variant="primary" size="sm" isLoading={isCreatingPackage}>
+                Ajouter
+              </Button>
+            </form>
+            <div className="mt-5 divide-y divide-stone-100 rounded-2xl border border-stone-200">
+              {promotionPackages.length ? promotionPackages.map((pkg) => (
+                <div key={pkg.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-bold text-stone-900">{pkg.name}</p>
+                    <p className="mt-1 text-xs text-stone-500">
+                      {pkg.durationDays} jour(s) · {formatCdfPrice(pkg.priceCdf)}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void togglePromotionPackage(pkg)}
+                    className={`rounded-lg px-3 py-2 text-xs font-bold ${pkg.isActive ? 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}
+                  >
+                    {pkg.isActive ? 'Actif · désactiver' : 'Inactif · activer'}
+                  </button>
+                </div>
+              )) : (
+                <p className="p-5 text-sm text-stone-500">Aucun forfait configuré.</p>
+              )}
+            </div>
+          </div>
         </section>
 
       </main>
