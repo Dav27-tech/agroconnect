@@ -13,6 +13,9 @@ import {
   SaleType,
   StockMovementType,
   SubOrderStatus,
+  PaymentAttempt,
+  PromotionPackage,
+  SellerSubscriptionStatus,
 } from '../types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
@@ -303,6 +306,54 @@ export const api = {
     },
   },
 
+  payments: {
+    async initiateOrderPayment(
+      data: { subOrderId: string; provider: 'M_PESA' | 'ORANGE_MONEY' | 'AIRTEL_MONEY' | 'AFRIMONEY'; customerPhoneNumber: string },
+      idempotencyKey: string
+    ): Promise<PaymentAttempt> {
+      return await request<PaymentAttempt>('/payments/checkout', {
+        method: 'POST',
+        headers: { 'Idempotency-Key': idempotencyKey },
+        body: JSON.stringify(data),
+      });
+    },
+
+    async initiateSubscriptionPayment(
+      data: { provider: 'M_PESA' | 'ORANGE_MONEY' | 'AIRTEL_MONEY' | 'AFRIMONEY'; customerPhoneNumber?: string },
+      idempotencyKey: string
+    ): Promise<PaymentAttempt> {
+      return await request<PaymentAttempt>('/payments/subscription/checkout', {
+        method: 'POST',
+        headers: { 'Idempotency-Key': idempotencyKey },
+        body: JSON.stringify(data),
+      });
+    },
+
+    async getMySubscription(): Promise<SellerSubscriptionStatus> {
+      return await request<SellerSubscriptionStatus>('/payments/subscription/me');
+    },
+
+    async listPromotionPackages(): Promise<PromotionPackage[]> {
+      return await request<PromotionPackage[]>('/payments/promotion-packages');
+    },
+
+    async initiatePromotionPayment(
+      offerId: string,
+      data: { packageId: string; provider: 'M_PESA' | 'ORANGE_MONEY' | 'AIRTEL_MONEY' | 'AFRIMONEY'; customerPhoneNumber?: string },
+      idempotencyKey: string
+    ): Promise<PaymentAttempt> {
+      return await request<PaymentAttempt>(`/payments/offers/${offerId}/promotion`, {
+        method: 'POST',
+        headers: { 'Idempotency-Key': idempotencyKey },
+        body: JSON.stringify(data),
+      });
+    },
+
+    async verify(transactionId: string): Promise<PaymentAttempt> {
+      return await request<PaymentAttempt>(`/payments/verify/${transactionId}`);
+    },
+  },
+
   // --------------------------------------------------------------------------
   // LIVRAISON & TRAÇABILITÉ
   // --------------------------------------------------------------------------
@@ -397,6 +448,39 @@ export const api = {
   },
 
   admin: {
+    async getPaymentSettings(): Promise<{ receivingPhoneNumber: string | null; monthlySubscriptionCdf: number; currency: 'CDF' }> {
+      return await request('/admin/payment-settings');
+    },
+
+    async updatePaymentSettings(data: { receivingPhoneNumber?: string | null; monthlySubscriptionCdf?: number }): Promise<{
+      receivingPhoneNumber: string | null;
+      monthlySubscriptionCdf: number;
+      currency: 'CDF';
+    }> {
+      return await request('/admin/payment-settings', {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      });
+    },
+
+    async listPromotionPackages(): Promise<PromotionPackage[]> {
+      return await request('/admin/promotion-packages');
+    },
+
+    async createPromotionPackage(data: { name: string; durationDays: number; priceCdf: number }): Promise<PromotionPackage> {
+      return await request('/admin/promotion-packages', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+
+    async updatePromotionPackage(packageId: string, data: Partial<Pick<PromotionPackage, 'name' | 'durationDays' | 'priceCdf' | 'isActive'>>): Promise<PromotionPackage> {
+      return await request(`/admin/promotion-packages/${packageId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      });
+    },
+
     async getStats(): Promise<{
       usersCount: number;
       activeSellersCount: number;
