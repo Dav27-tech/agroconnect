@@ -1,30 +1,157 @@
 'use client';
 
 import React, { useState } from 'react';
+import { ValidationError, useForm } from '@formspree/react';
 import { PageHeader } from '../../components/layout/PageHeader';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { DRC_PROVINCES } from '../../constants/drc';
 import { IconLocation, IconPhone, IconMail, IconBuilding } from '../../components/ui/Icons';
 
-export default function ContactPage() {
+function ContactForm({ formId }: { formId: string }) {
+  const [formState, handleSubmit, resetForm] = useForm(formId);
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [province, setProvince] = useState('Kinshasa');
   const [subject, setSubject] = useState('QUESTION_COMMANDE');
   const [message, setMessage] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-    setTimeout(() => {
-      setIsSubmitting(false);
-      setSubmitted(true);
-    }, 1200);
-  };
+  return formState.succeeded ? (
+    <div className="p-8 text-center bg-emerald-50 rounded-2xl border border-emerald-200 space-y-3">
+      <IconMail className="w-10 h-10 mx-auto text-emerald-700" aria-hidden="true" />
+      <h3 className="text-lg font-bold text-emerald-950">
+        Message transmis avec succès !
+      </h3>
+      <p className="text-xs text-emerald-800 leading-relaxed max-w-sm mx-auto">
+        Merci {fullName}. Votre demande pour la province de {province} a bien été envoyée. Nous vous contacterons au {phone}.
+      </p>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => {
+          resetForm();
+          setFullName('');
+          setPhone('');
+          setEmail('');
+          setProvince('Kinshasa');
+          setSubject('QUESTION_COMMANDE');
+          setMessage('');
+        }}
+        className="mt-4"
+      >
+        Envoyer un autre message
+      </Button>
+    </div>
+  ) : (
+    <form onSubmit={handleSubmit} className="space-y-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Input
+          label="Nom complet ou Raison Sociale *"
+          name="fullName"
+          placeholder="Ex: Patient Kalala"
+          autoComplete="name"
+          required
+          value={fullName}
+          onChange={(e) => setFullName(e.target.value)}
+        />
+        <Input
+          label="Numéro de Téléphone (RDC) *"
+          name="phone"
+          type="tel"
+          placeholder="+243 81..."
+          autoComplete="tel"
+          required
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <Input
+            label="Adresse Email"
+            name="email"
+            type="email"
+            placeholder="contact@exemple.cd"
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+          <ValidationError field="email" errors={formState.errors} />
+        </div>
+        <div>
+          <label htmlFor="contact-province" className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
+            Province d&apos;activité (RDC) *
+          </label>
+          <select
+            id="contact-province"
+            name="province"
+            required
+            value={province}
+            onChange={(e) => setProvince(e.target.value)}
+            className="w-full text-xs font-semibold text-stone-700 bg-white border border-stone-300 rounded-xl p-3 outline-none cursor-pointer"
+          >
+            {DRC_PROVINCES.map((p) => (
+              <option key={p} value={p}>{p}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div>
+        <label htmlFor="contact-subject" className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
+          Objet de la Demande *
+        </label>
+        <select
+          id="contact-subject"
+          name="subject"
+          required
+          value={subject}
+          onChange={(e) => setSubject(e.target.value)}
+          className="w-full text-xs font-semibold text-stone-700 bg-white border border-stone-300 rounded-xl p-3 outline-none cursor-pointer"
+        >
+          <option value="QUESTION_COMMANDE">Question sur une commande</option>
+          <option value="INSCRIPTION_VENDEUR">Devenir Producteur ou Revendeur Agréé</option>
+          <option value="QUESTION_PRODUIT">Question sur un produit ou une offre</option>
+          <option value="PARTENARIAT_TRANSPORT">Proposer un service de transport / logistique</option>
+          <option value="AUTRE">Autre renseignement</option>
+        </select>
+      </div>
+
+      <div>
+        <label htmlFor="contact-message" className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
+          Votre Message *
+        </label>
+        <textarea
+          id="contact-message"
+          name="message"
+          rows={4}
+          required
+          placeholder="Décrivez votre besoin en détaillant la culture, le volume ou votre question..."
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          className="w-full text-sm text-stone-900 bg-white border border-stone-300 rounded-xl p-3.5 outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20"
+        />
+        <ValidationError field="message" errors={formState.errors} />
+      </div>
+
+      <ValidationError errors={formState.errors} />
+      <Button
+        type="submit"
+        variant="primary"
+        size="lg"
+        className="w-full"
+        isLoading={formState.submitting}
+      >
+        Envoyer le message
+      </Button>
+    </form>
+  );
+}
+
+export default function ContactPage() {
+  const formId = process.env.NEXT_PUBLIC_FORMSPREE_FORM_ID;
 
   const offices = [
     {
@@ -72,113 +199,12 @@ export default function ContactPage() {
               Remplissez ce formulaire et notre service d&apos;assistance vous répondra sous 24 heures ouvrées.
             </p>
 
-            {submitted ? (
-              <div className="p-8 text-center bg-emerald-50 rounded-2xl border border-emerald-200 space-y-3">
-                <span className="text-4xl">✉️</span>
-                <h3 className="text-lg font-bold text-emerald-950">
-                  Message Transmis avec Succès !
-                </h3>
-                <p className="text-xs text-emerald-800 leading-relaxed max-w-sm mx-auto">
-                  Merci {fullName}. Notre conseiller commercial pour la province de {province} a bien reçu votre demande et vous contactera au {phone}.
-                </p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setSubmitted(false);
-                    setMessage('');
-                  }}
-                  className="mt-4"
-                >
-                  Envoyer un autre message
-                </Button>
-              </div>
+            {formId ? (
+              <ContactForm formId={formId} />
             ) : (
-              <form onSubmit={handleSubmit} className="space-y-5">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <Input
-                    label="Nom complet ou Raison Sociale *"
-                    placeholder="Ex: Patient Kalala"
-                    required
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                  />
-                  <Input
-                    label="Numéro de Téléphone (RDC) *"
-                    placeholder="+243 81..."
-                    required
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <Input
-                    label="Adresse Email"
-                    type="email"
-                    placeholder="contact@exemple.cd"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                  />
-                  <div>
-                    <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
-                      Province d&apos;activité (RDC) *
-                    </label>
-                    <select
-                      value={province}
-                      onChange={(e) => setProvince(e.target.value)}
-                      className="w-full text-xs font-semibold text-stone-700 bg-white border border-stone-300 rounded-xl p-3 outline-none cursor-pointer"
-                    >
-                      {DRC_PROVINCES.map((p) => (
-                        <option key={p} value={p}>
-                          {p}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
-                    Objet de la Demande *
-                  </label>
-                  <select
-                    value={subject}
-                    onChange={(e) => setSubject(e.target.value)}
-                    className="w-full text-xs font-semibold text-stone-700 bg-white border border-stone-300 rounded-xl p-3 outline-none cursor-pointer"
-                  >
-                    <option value="QUESTION_COMMANDE">Suivi d&apos;une commande ou livraison de fret</option>
-                    <option value="INSCRIPTION_VENDEUR">Devenir Producteur ou Revendeur Agréé</option>
-                    <option value="ACHAT_B2B_GROS">Demande de cotation pour achat industriel (B2B)</option>
-                    <option value="PARTENARIAT_TRANSPORT">Proposer un service de transport / logistique</option>
-                    <option value="AUTRE">Autre renseignement</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
-                    Votre Message *
-                  </label>
-                  <textarea
-                    rows={4}
-                    required
-                    placeholder="Décrivez votre besoin en détaillant la culture, le volume ou votre question..."
-                    value={message}
-                    onChange={(e) => setMessage(e.target.value)}
-                    className="w-full text-sm text-stone-900 bg-white border border-stone-300 rounded-xl p-3.5 outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20"
-                  />
-                </div>
-
-                <Button
-                  type="submit"
-                  variant="primary"
-                  size="lg"
-                  className="w-full"
-                  isLoading={isSubmitting}
-                >
-                  Envoyer le message
-                </Button>
-              </form>
+              <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                Le formulaire de contact n&apos;est pas configuré. Veuillez réessayer ultérieurement ou nous contacter par téléphone.
+              </p>
             )}
           </div>
 
