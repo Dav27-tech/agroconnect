@@ -6,8 +6,10 @@ import { ProductCard } from './ProductCard';
 import { IconChevronRight } from '../ui/Icons';
 import { api } from '../../services/api';
 import { SellerOfferItem } from '../../types';
+import { useRealtime } from '../../context/RealtimeContext';
 
 export function FeaturedOffers() {
+  const socket = useRealtime();
   const [offers, setOffers] = useState<SellerOfferItem[]>([]);
 
   useEffect(() => {
@@ -27,6 +29,19 @@ export function FeaturedOffers() {
       mounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!socket) return;
+    const refreshOffers = () => {
+      void api.offers.list({ featured: true })
+        .then((result) => setOffers(result))
+        .catch((error) => console.error('Erreur de mise à jour des offres vedettes :', error));
+    };
+    socket.on('inventory.updated', refreshOffers);
+    return () => {
+      socket.off('inventory.updated', refreshOffers);
+    };
+  }, [socket]);
 
   return (
     <section className="py-16 sm:py-20 bg-white">
