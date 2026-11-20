@@ -18,6 +18,7 @@ import {
   DeliveryOperation,
   DeliveryStatus,
   ManualCollectionMethod,
+  AdminAccount,
 } from '../types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
@@ -540,6 +541,31 @@ export const api = {
       });
     },
 
+  },
+
+  superAdmin: {
+    async listAdmins(): Promise<AdminAccount[]> {
+      return await request<AdminAccount[]>('/admin/admins');
+    },
+
+    async createAdmin(data: {
+      fullName: string;
+      email: string;
+      phoneNumber: string;
+      password: string;
+    }): Promise<AdminAccount> {
+      return await request<AdminAccount>('/admin/admins', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+
+    async updateAdminStatus(userId: string, isActive: boolean): Promise<AdminAccount> {
+      return await request<AdminAccount>(`/admin/admins/${userId}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ isActive }),
+      });
+    },
   },
 };
 
