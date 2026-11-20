@@ -14,6 +14,7 @@ interface AuthContextType {
   isBuyer: boolean;
   isCourier: boolean;
   isAdmin: boolean;
+  isSuperAdmin: boolean;
   login: (email: string, pass: string) => Promise<User>;
   register: (data: {
     phoneNumber: string;
@@ -140,7 +141,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isSeller = Boolean(user && (user.roles?.includes('SELLER') || user.sellerId));
   const isBuyer = Boolean(user && user.roles?.includes('BUYER'));
   const isCourier = Boolean(user && user.roles?.includes('DELIVERY_PERSON'));
-  const isAdmin = Boolean(user && user.roles?.includes('ADMIN'));
+  const isSuperAdmin = Boolean(user && user.roles?.includes('SUPER_ADMIN'));
+  const isAdmin = Boolean(user && (user.roles?.includes('ADMIN') || isSuperAdmin));
 
   return (
     <AuthContext.Provider
@@ -153,6 +155,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isBuyer,
         isCourier,
         isAdmin,
+        isSuperAdmin,
         login,
         register,
         logout,
