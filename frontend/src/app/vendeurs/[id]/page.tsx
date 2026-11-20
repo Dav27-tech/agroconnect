@@ -148,7 +148,7 @@ export default function SellerProfilePage() {
                   <span>Localisation dépôt : {seller.city}</span>
                 </div>
                 <p className="text-[11px] text-stone-400 pt-2 border-t border-stone-200 leading-relaxed">
-                  Toutes les commandes passées auprès de ce vendeur bénéficient de la protection d&apos;intermédiation AgroConnect et du paiement sécurisé Mobile Money.
+                  Le règlement s’effectue en CDF directement auprès du livreur lors de la remise de la commande.
                 </p>
               </div>
             </div>
