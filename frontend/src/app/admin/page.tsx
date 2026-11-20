@@ -1,13 +1,15 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useRealtime } from '../../context/RealtimeContext';
 import { api } from '../../services/api';
 import { PageHeader } from '../../components/layout/PageHeader';
 import { Button } from '../../components/ui/Button';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { DashboardBarChart } from '../../components/dashboard/DashboardBarChart';
 import { formatCdfPrice } from '../../utils/format';
-import { PromotionPackage } from '../../types';
+import { CourierAccount, DeliveryOperation } from '../../types';
 import {
   IconBasket,
   IconBuilding,
@@ -18,7 +20,9 @@ import {
   IconSearch,
   IconShieldCheck,
   IconShoppingBag,
+  IconTruck,
   IconUser,
+  IconCheck,
 } from '../../components/ui/Icons';
 
 const verificationLabels: Record<string, string> = {
@@ -65,6 +69,7 @@ interface AdminStats {
 }
 
 export default function AdminPage() {
+  const socket = useRealtime();
   const { isAdmin, isLoading: isAuthLoading } = useAuth();
   const [profiles, setProfiles] = useState<SellerReview[]>([]);
   const [sellers, setSellers] = useState<SellerReview[]>([]);
@@ -77,124 +82,159 @@ export default function AdminPage() {
   const [reviewingSellerId, setReviewingSellerId] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
-  const [receivingPhoneNumber, setReceivingPhoneNumber] = useState('');
-  const [monthlySubscriptionCdf, setMonthlySubscriptionCdf] = useState('500');
-  const [promotionPackages, setPromotionPackages] = useState<PromotionPackage[]>([]);
-  const [newPackageName, setNewPackageName] = useState('');
-  const [newPackageDays, setNewPackageDays] = useState('7');
-  const [newPackagePrice, setNewPackagePrice] = useState('');
-  const [isSavingPaymentSettings, setIsSavingPaymentSettings] = useState(false);
-  const [isCreatingPackage, setIsCreatingPackage] = useState(false);
+  const [commissionRatePercent, setCommissionRatePercent] = useState('10');
+  const [couriers, setCouriers] = useState<CourierAccount[]>([]);
+  const [deliveries, setDeliveries] = useState<DeliveryOperation[]>([]);
+  const [financeSummary, setFinanceSummary] = useState<Awaited<ReturnType<typeof api.finance.getPlatformSummary>> | null>(null);
+  const [newCourier, setNewCourier] = useState({
+    fullName: '',
+    email: '',
+    phoneNumber: '',
+    password: '',
+    companyName: '',
+    vehicleType: '',
+    plateNumber: '',
+    operatingArea: '',
+  });
+  const [selectedCourierByDelivery, setSelectedCourierByDelivery] = useState<Record<string, string>>({});
+  const [isSavingCommission, setIsSavingCommission] = useState(false);
+  const [isCreatingCourier, setIsCreatingCourier] = useState(false);
+  const [updatingCourierId, setUpdatingCourierId] = useState<string | null>(null);
+  const [assigningDeliveryId, setAssigningDeliveryId] = useState<string | null>(null);
+  const [confirmingDepositId, setConfirmingDepositId] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (isAuthLoading || !isAdmin) return;
-    let mounted = true;
-
-    Promise.all([
-      api.admin.getStats(),
-      api.admin.listSellerProfiles(statusFilter),
-      api.admin.listSellerProfiles('ALL'),
-      api.admin.getPaymentSettings(),
-      api.admin.listPromotionPackages(),
-    ])
-      .then(([platformStats, sellerProfiles, allSellers, paymentSettings, packages]) => {
-        if (!mounted) return;
-        setStats(platformStats);
-        setProfiles(sellerProfiles);
-        setSellers(allSellers);
-        setReceivingPhoneNumber(paymentSettings.receivingPhoneNumber ?? '');
-        setMonthlySubscriptionCdf(String(paymentSettings.monthlySubscriptionCdf));
-        setPromotionPackages(packages);
-      })
-      .catch((error) => {
-        if (mounted) setErrorMessage((error as Error).message);
-      })
-      .finally(() => {
-        if (mounted) setIsLoading(false);
-      });
-
-    return () => {
-      mounted = false;
-    };
-  }, [isAdmin, isAuthLoading, statusFilter]);
-
-  const refreshProfiles = async () => {
+  const refreshProfiles = useCallback(async () => {
     setIsLoading(true);
     setErrorMessage('');
     setMessage('');
     try {
-      const [platformStats, sellerProfiles, allSellers, paymentSettings, packages] = await Promise.all([
+      const [platformStats, sellerProfiles, allSellers, commissionSettings, courierList, deliveryList, summary] = await Promise.all([
         api.admin.getStats(),
         api.admin.listSellerProfiles(statusFilter),
         api.admin.listSellerProfiles('ALL'),
-        api.admin.getPaymentSettings(),
-        api.admin.listPromotionPackages(),
+        api.admin.getCommissionSettings(),
+        api.admin.listCouriers(),
+        api.deliveries.listOperations(),
+        api.finance.getPlatformSummary(),
       ]);
       setStats(platformStats);
       setProfiles(sellerProfiles);
       setSellers(allSellers);
-      setReceivingPhoneNumber(paymentSettings.receivingPhoneNumber ?? '');
-      setMonthlySubscriptionCdf(String(paymentSettings.monthlySubscriptionCdf));
-      setPromotionPackages(packages);
+      setCommissionRatePercent(String(commissionSettings.commissionRatePercent));
+      setCouriers(courierList);
+      setDeliveries(deliveryList);
+      setFinanceSummary(summary);
     } catch (error) {
       setErrorMessage((error as Error).message);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [statusFilter]);
 
-  const savePaymentSettings = async (event: React.FormEvent) => {
+  useEffect(() => {
+    if (isAuthLoading || !isAdmin) return;
+    void Promise.resolve().then(refreshProfiles);
+  }, [isAdmin, isAuthLoading, refreshProfiles]);
+
+  useEffect(() => {
+    if (!socket || !isAdmin) return;
+    const refreshAdminData = () => {
+      void refreshProfiles();
+    };
+    socket.on('order.created', refreshAdminData);
+    socket.on('order.updated', refreshAdminData);
+    socket.on('delivery.updated', refreshAdminData);
+    return () => {
+      socket.off('order.created', refreshAdminData);
+      socket.off('order.updated', refreshAdminData);
+      socket.off('delivery.updated', refreshAdminData);
+    };
+  }, [isAdmin, refreshProfiles, socket]);
+
+  const saveCommissionSettings = async (event: React.FormEvent) => {
     event.preventDefault();
-    setIsSavingPaymentSettings(true);
+    setIsSavingCommission(true);
     setErrorMessage('');
     setMessage('');
     try {
-      const settings = await api.admin.updatePaymentSettings({
-        receivingPhoneNumber: receivingPhoneNumber.trim() || null,
-        monthlySubscriptionCdf: Number(monthlySubscriptionCdf),
-      });
-      setReceivingPhoneNumber(settings.receivingPhoneNumber ?? '');
-      setMonthlySubscriptionCdf(String(settings.monthlySubscriptionCdf));
-      setMessage('Paramètres des paiements mis à jour.');
+      const settings = await api.admin.updateCommissionSettings(Number(commissionRatePercent));
+      setCommissionRatePercent(String(settings.commissionRatePercent));
+      setMessage('Taux de commission mis à jour pour les nouvelles commandes.');
     } catch (error) {
       setErrorMessage((error as Error).message);
     } finally {
-      setIsSavingPaymentSettings(false);
+      setIsSavingCommission(false);
     }
   };
 
-  const createPromotionPackage = async (event: React.FormEvent) => {
+  const createCourier = async (event: React.FormEvent) => {
     event.preventDefault();
-    setIsCreatingPackage(true);
+    setIsCreatingCourier(true);
     setErrorMessage('');
     setMessage('');
     try {
-      const created = await api.admin.createPromotionPackage({
-        name: newPackageName.trim(),
-        durationDays: Number(newPackageDays),
-        priceCdf: Number(newPackagePrice),
-      });
-      setPromotionPackages((current) => [...current, created].sort((a, b) => a.durationDays - b.durationDays));
-      setNewPackageName('');
-      setNewPackageDays('7');
-      setNewPackagePrice('');
-      setMessage('Forfait promotionnel créé.');
+      const created = await api.admin.createCourier(newCourier);
+      setCouriers((current) => [...current, created].sort((a, b) => a.fullName.localeCompare(b.fullName)));
+      setNewCourier({ fullName: '', email: '', phoneNumber: '', password: '', companyName: '', vehicleType: '', plateNumber: '', operatingArea: '' });
+      setMessage('Compte livreur créé et prêt à recevoir des affectations.');
     } catch (error) {
       setErrorMessage((error as Error).message);
     } finally {
-      setIsCreatingPackage(false);
+      setIsCreatingCourier(false);
     }
   };
 
-  const togglePromotionPackage = async (pkg: PromotionPackage) => {
+  const toggleCourierAvailability = async (courier: CourierAccount) => {
+    setUpdatingCourierId(courier.id);
     setErrorMessage('');
     setMessage('');
     try {
-      const updated = await api.admin.updatePromotionPackage(pkg.id, { isActive: !pkg.isActive });
-      setPromotionPackages((current) => current.map((item) => item.id === pkg.id ? updated : item));
-      setMessage(updated.isActive ? 'Forfait activé.' : 'Forfait désactivé.');
+      const updated = await api.admin.updateCourierAvailability(courier.id, !courier.isAvailable);
+      setCouriers((current) => current.map((item) => item.id === courier.id ? { ...item, isAvailable: updated.isAvailable } : item));
+      setMessage(updated.isAvailable ? 'Livreur disponible pour les affectations.' : 'Livreur marqué indisponible.');
     } catch (error) {
       setErrorMessage((error as Error).message);
+    } finally {
+      setUpdatingCourierId(null);
+    }
+  };
+
+  const assignCourier = async (delivery: DeliveryOperation) => {
+    const personnelId = selectedCourierByDelivery[delivery.id];
+    if (!personnelId) {
+      setErrorMessage('Sélectionnez un livreur disponible avant l’affectation.');
+      return;
+    }
+    setAssigningDeliveryId(delivery.id);
+    setErrorMessage('');
+    setMessage('');
+    try {
+      await api.deliveries.assign(delivery.id, personnelId);
+      setMessage(`Livreur affecté à la commande ${delivery.orderNumber}.`);
+      await refreshProfiles();
+    } catch (error) {
+      setErrorMessage((error as Error).message);
+    } finally {
+      setAssigningDeliveryId(null);
+    }
+  };
+
+  const confirmPlatformDeposit = async (delivery: DeliveryOperation) => {
+    if (delivery.collectedAmountCdf === null || delivery.collectedAmountCdf === undefined) {
+      setErrorMessage('Aucun montant de collecte n’est enregistré pour cette livraison.');
+      return;
+    }
+    setConfirmingDepositId(delivery.id);
+    setErrorMessage('');
+    setMessage('');
+    try {
+      await api.deliveries.confirmPlatformDeposit(delivery.id, delivery.collectedAmountCdf);
+      setMessage(`Remise de ${formatCdfPrice(delivery.collectedAmountCdf)} confirmée pour ${delivery.orderNumber}.`);
+      await refreshProfiles();
+    } catch (error) {
+      setErrorMessage((error as Error).message);
+    } finally {
+      setConfirmingDepositId(null);
     }
   };
 
@@ -249,6 +289,26 @@ export default function AdminPage() {
       seller.province,
     ].some((value) => value?.toLocaleLowerCase().includes(query));
   });
+  const deliveryChartData = [
+    { label: 'À affecter', value: deliveries.filter((delivery) => delivery.deliveryStatus === 'PENDING').length, tone: 'amber' as const },
+    { label: 'Affectées', value: deliveries.filter((delivery) => delivery.deliveryStatus === 'ASSIGNED').length, tone: 'sky' as const },
+    {
+      label: 'En cours',
+      value: deliveries.filter((delivery) => ['PICKED_UP', 'IN_TRANSIT', 'ARRIVED'].includes(delivery.deliveryStatus)).length,
+      tone: 'blue' as const,
+    },
+    { label: 'Livrées', value: deliveries.filter((delivery) => delivery.deliveryStatus === 'DELIVERED').length, tone: 'emerald' as const },
+    {
+      label: 'Incidents',
+      value: deliveries.filter((delivery) => ['FAILED', 'CANCELLED'].includes(delivery.deliveryStatus)).length,
+      tone: 'rose' as const,
+    },
+  ];
+  const financeChartData = financeSummary ? [
+    { label: 'Volume brut', value: financeSummary.grossMarketplaceVolumeCdf, tone: 'sky' as const },
+    { label: 'Commission AgroConnect', value: financeSummary.agroConnectCommissionCdf, tone: 'emerald' as const },
+    { label: 'Revenus vendeurs', value: financeSummary.sellerEarningsCdf, tone: 'violet' as const },
+  ] : [];
 
   if (isAuthLoading || (isAdmin && isLoading)) {
     return (
@@ -343,6 +403,22 @@ export default function AdminPage() {
               <p className="mt-1 min-h-8 text-[11px] leading-4 text-stone-500">{item.detail}</p>
             </article>
           ))}
+        </section>
+
+        <section aria-label="Graphiques de performance" className="grid gap-5 xl:grid-cols-2">
+          <DashboardBarChart
+            title="État des livraisons"
+            description="Répartition des missions selon leur statut actuel."
+            data={deliveryChartData}
+            emptyMessage="Les livraisons apparaîtront ici dès les premières commandes."
+          />
+          <DashboardBarChart
+            title="Volume financier cumulé"
+            description="Répartition des montants des commandes et des revenus associés, en CDF."
+            data={financeChartData}
+            formatValue={formatCdfPrice}
+            emptyMessage="Les données financières ne sont pas disponibles pour le moment."
+          />
         </section>
 
         <section aria-labelledby="seller-management-title" className="overflow-hidden rounded-3xl border border-stone-200 bg-white shadow-sm">
@@ -538,113 +614,199 @@ export default function AdminPage() {
           )}
         </section>
 
-        <section aria-labelledby="payment-settings-title" className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+        <section aria-label="Suivi financier des commandes" className="space-y-4">
+          <div>
+            <h2 className="text-xl font-black text-stone-900">Collectes & règlements</h2>
+            <p className="mt-1 text-sm text-stone-500">Les montants sont collectés par les livreurs et rapprochés manuellement à leur remise à AgroConnect.</p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {[
+              { label: 'Volume des commandes', value: financeSummary?.grossMarketplaceVolumeCdf ?? 0, tone: 'bg-sky-50 text-sky-900' },
+              { label: 'Commission AgroConnect', value: financeSummary?.agroConnectCommissionCdf ?? 0, tone: 'bg-emerald-50 text-emerald-900' },
+              { label: 'Fonds reçus', value: financeSummary?.platformReceivedCdf ?? 0, tone: 'bg-violet-50 text-violet-900' },
+              { label: 'À remettre à AgroConnect', value: financeSummary?.awaitingPlatformDepositCdf ?? 0, tone: 'bg-amber-50 text-amber-900' },
+            ].map((item) => (
+              <article key={item.label} className={`rounded-2xl border border-stone-200 p-4 ${item.tone}`}>
+                <p className="text-[10px] font-bold uppercase tracking-wide">{item.label}</p>
+                <p className="mt-2 text-xl font-black">{formatCdfPrice(item.value)}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
           <div className="rounded-3xl border border-stone-200 bg-white p-5 shadow-sm sm:p-7">
-            <div className="mb-5">
-              <h2 id="payment-settings-title" className="text-xl font-bold text-stone-900">Paiements AgroConnect</h2>
-              <p className="mt-1 text-sm text-stone-500">Configurez le numéro bénéficiaire et le prix de l’abonnement mensuel, en CDF.</p>
-            </div>
-            <form onSubmit={(event) => void savePaymentSettings(event)} className="space-y-4">
+            <h2 className="text-lg font-bold text-stone-900">Commission des nouvelles commandes</h2>
+            <p className="mt-1 text-sm text-stone-500">Le taux initial est de 10 %. Une modification s’applique uniquement aux commandes créées ensuite.</p>
+            <form onSubmit={(event) => void saveCommissionSettings(event)} className="mt-5 space-y-4">
               <label className="block text-xs font-bold text-stone-700">
-                Numéro Mobile Money bénéficiaire
-                <input
-                  type="tel"
-                  value={receivingPhoneNumber}
-                  onChange={(event) => setReceivingPhoneNumber(event.target.value)}
-                  placeholder="+243..."
-                  pattern="(\+243|0)[0-9]{9}"
-                  className="mt-1.5 w-full rounded-xl border border-stone-300 bg-white px-3 py-2.5 text-sm font-medium"
-                />
-              </label>
-              <label className="block text-xs font-bold text-stone-700">
-                Abonnement vendeur mensuel (CDF)
+                Taux de commission (%)
                 <input
                   type="number"
-                  min="1"
-                  step="1"
+                  min="0"
+                  max="99.99"
+                  step="0.01"
                   required
-                  value={monthlySubscriptionCdf}
-                  onChange={(event) => setMonthlySubscriptionCdf(event.target.value)}
+                  value={commissionRatePercent}
+                  onChange={(event) => setCommissionRatePercent(event.target.value)}
                   className="mt-1.5 w-full rounded-xl border border-stone-300 bg-white px-3 py-2.5 text-sm font-medium"
                 />
               </label>
               <p className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-xs leading-relaxed text-sky-900">
-                Les abonnements et promotions sont transférés à AgroConnect. Pour une commande, GoFreshPay débite l’acheteur puis AgroConnect transfère le montant au numéro du vendeur.
+                Le client remet le total au livreur. La commission est déduite du montant net dû au vendeur; aucun transfert n’est exécuté par l’application.
               </p>
-              <Button type="submit" variant="primary" size="sm" isLoading={isSavingPaymentSettings}>
-                Enregistrer les paramètres
-              </Button>
+              <Button type="submit" variant="primary" size="sm" isLoading={isSavingCommission}>Enregistrer le taux</Button>
             </form>
           </div>
 
           <div className="rounded-3xl border border-stone-200 bg-white p-5 shadow-sm sm:p-7">
-            <div className="mb-5">
-              <h2 className="text-xl font-bold text-stone-900">Forfaits de mise en avant</h2>
-              <p className="mt-1 text-sm text-stone-500">Les vendeurs paient un forfait pour promouvoir une offre pendant une durée définie.</p>
+            <div className="flex items-start gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-50 text-sky-800">
+                <IconTruck className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <div>
+                <h2 className="text-lg font-bold text-stone-900">Créer un compte livreur</h2>
+                <p className="mt-1 text-sm text-stone-500">Les comptes sont créés et gérés par l’administration.</p>
+              </div>
             </div>
-            <form onSubmit={(event) => void createPromotionPackage(event)} className="grid gap-3 sm:grid-cols-[1.3fr_0.7fr_0.8fr_auto] sm:items-end">
-              <label className="block text-xs font-bold text-stone-700">
-                Nom
-                <input
-                  required
-                  minLength={2}
-                  maxLength={120}
-                  value={newPackageName}
-                  onChange={(event) => setNewPackageName(event.target.value)}
-                  placeholder="À la une - 7 jours"
-                  className="mt-1.5 w-full rounded-xl border border-stone-300 px-3 py-2.5 text-sm"
-                />
+            <form onSubmit={(event) => void createCourier(event)} className="mt-5 grid gap-3 sm:grid-cols-2">
+              <label className="text-xs font-bold text-stone-700">
+                Nom complet *
+                <input required minLength={2} value={newCourier.fullName} onChange={(event) => setNewCourier({ ...newCourier, fullName: event.target.value })} className="mt-1.5 w-full rounded-xl border border-stone-300 px-3 py-2.5 text-sm" />
               </label>
-              <label className="block text-xs font-bold text-stone-700">
-                Jours
-                <input
-                  type="number"
-                  min="1"
-                  max="3650"
-                  required
-                  value={newPackageDays}
-                  onChange={(event) => setNewPackageDays(event.target.value)}
-                  className="mt-1.5 w-full rounded-xl border border-stone-300 px-3 py-2.5 text-sm"
-                />
+              <label className="text-xs font-bold text-stone-700">
+                Email de connexion *
+                <input type="email" required value={newCourier.email} onChange={(event) => setNewCourier({ ...newCourier, email: event.target.value })} className="mt-1.5 w-full rounded-xl border border-stone-300 px-3 py-2.5 text-sm" />
               </label>
-              <label className="block text-xs font-bold text-stone-700">
-                Prix CDF
-                <input
-                  type="number"
-                  min="1"
-                  step="1"
-                  required
-                  value={newPackagePrice}
-                  onChange={(event) => setNewPackagePrice(event.target.value)}
-                  className="mt-1.5 w-full rounded-xl border border-stone-300 px-3 py-2.5 text-sm"
-                />
+              <label className="text-xs font-bold text-stone-700">
+                Téléphone RDC *
+                <input type="tel" required pattern="(\+243|0)[0-9]{9}" placeholder="+243..." value={newCourier.phoneNumber} onChange={(event) => setNewCourier({ ...newCourier, phoneNumber: event.target.value })} className="mt-1.5 w-full rounded-xl border border-stone-300 px-3 py-2.5 text-sm" />
               </label>
-              <Button type="submit" variant="primary" size="sm" isLoading={isCreatingPackage}>
-                Ajouter
-              </Button>
+              <label className="text-xs font-bold text-stone-700">
+                Mot de passe provisoire *
+                <input type="password" required minLength={8} autoComplete="new-password" value={newCourier.password} onChange={(event) => setNewCourier({ ...newCourier, password: event.target.value })} className="mt-1.5 w-full rounded-xl border border-stone-300 px-3 py-2.5 text-sm" />
+              </label>
+              <label className="text-xs font-bold text-stone-700 sm:col-span-2">
+                Zone d’activité *
+                <input required minLength={2} placeholder="Ex. Kinshasa · Gombe, Limete" value={newCourier.operatingArea} onChange={(event) => setNewCourier({ ...newCourier, operatingArea: event.target.value })} className="mt-1.5 w-full rounded-xl border border-stone-300 px-3 py-2.5 text-sm" />
+              </label>
+              <label className="text-xs font-bold text-stone-700">
+                Organisation (facultatif)
+                <input value={newCourier.companyName} onChange={(event) => setNewCourier({ ...newCourier, companyName: event.target.value })} className="mt-1.5 w-full rounded-xl border border-stone-300 px-3 py-2.5 text-sm" />
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="text-xs font-bold text-stone-700">
+                  Véhicule
+                  <input value={newCourier.vehicleType} onChange={(event) => setNewCourier({ ...newCourier, vehicleType: event.target.value })} className="mt-1.5 w-full rounded-xl border border-stone-300 px-3 py-2.5 text-sm" />
+                </label>
+                <label className="text-xs font-bold text-stone-700">
+                  Plaque
+                  <input value={newCourier.plateNumber} onChange={(event) => setNewCourier({ ...newCourier, plateNumber: event.target.value })} className="mt-1.5 w-full rounded-xl border border-stone-300 px-3 py-2.5 text-sm" />
+                </label>
+              </div>
+              <div className="sm:col-span-2">
+                <Button type="submit" variant="primary" size="sm" isLoading={isCreatingCourier}>Créer le compte livreur</Button>
+              </div>
             </form>
-            <div className="mt-5 divide-y divide-stone-100 rounded-2xl border border-stone-200">
-              {promotionPackages.length ? promotionPackages.map((pkg) => (
-                <div key={pkg.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+          </div>
+        </section>
+
+        <section aria-labelledby="courier-list-title" className="rounded-3xl border border-stone-200 bg-white p-5 shadow-sm sm:p-7">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <h2 id="courier-list-title" className="text-lg font-bold text-stone-900">Livreurs gérés</h2>
+              <p className="mt-1 text-sm text-stone-500">{couriers.length} compte(s) · disponibilité modifiable à tout moment</p>
+            </div>
+            <IconTruck className="h-6 w-6 text-sky-800" aria-hidden="true" />
+          </div>
+          {couriers.length ? (
+            <div className="grid gap-3 md:grid-cols-2">
+              {couriers.map((courier) => (
+                <article key={courier.id} className="flex flex-col gap-3 rounded-2xl border border-stone-200 p-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <p className="text-sm font-bold text-stone-900">{pkg.name}</p>
-                    <p className="mt-1 text-xs text-stone-500">
-                      {pkg.durationDays} jour(s) · {formatCdfPrice(pkg.priceCdf)}
-                    </p>
+                    <p className="font-bold text-stone-900">{courier.fullName}</p>
+                    <p className="mt-1 text-xs text-stone-500">{courier.email} · {courier.phoneNumber}</p>
+                    <p className="mt-1 text-xs text-stone-500">{courier.operatingArea}{courier.vehicleType ? ` · ${courier.vehicleType}` : ''}{courier.plateNumber ? ` · ${courier.plateNumber}` : ''}</p>
+                    <p className="mt-2 text-[11px] font-semibold text-stone-600">{courier.activeDeliveriesCount} livraison(s) active(s)</p>
                   </div>
                   <button
                     type="button"
-                    onClick={() => void togglePromotionPackage(pkg)}
-                    className={`rounded-lg px-3 py-2 text-xs font-bold ${pkg.isActive ? 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}
+                    onClick={() => void toggleCourierAvailability(courier)}
+                    disabled={updatingCourierId === courier.id || !courier.isActive}
+                    className={`rounded-xl px-3 py-2 text-xs font-bold disabled:opacity-50 ${courier.isAvailable ? 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}
                   >
-                    {pkg.isActive ? 'Actif · désactiver' : 'Inactif · activer'}
+                    {updatingCourierId === courier.id ? 'Mise à jour…' : courier.isAvailable ? 'Disponible · suspendre' : 'Indisponible · activer'}
                   </button>
-                </div>
-              )) : (
-                <p className="p-5 text-sm text-stone-500">Aucun forfait configuré.</p>
-              )}
+                </article>
+              ))}
             </div>
+          ) : <p className="rounded-xl bg-stone-50 p-5 text-sm text-stone-500">Aucun compte livreur. Créez-en un ci-dessus.</p>}
+        </section>
+
+        <section aria-labelledby="delivery-operations-title" className="rounded-3xl border border-stone-200 bg-white p-5 shadow-sm sm:p-7">
+          <div className="mb-5">
+            <h2 id="delivery-operations-title" className="text-xl font-bold text-stone-900">Dispatch & remise des fonds</h2>
+            <p className="mt-1 text-sm text-stone-500">Affectez les commandes prêtes, puis rapprochez le montant exact remis par le livreur.</p>
           </div>
+          {deliveries.length ? (
+            <div className="space-y-3">
+              {deliveries.map((delivery) => {
+                const canAssign = delivery.orderStatus === 'READY_FOR_PICKUP' && delivery.deliveryStatus === 'PENDING';
+                const needsDeposit = delivery.deliveryStatus === 'DELIVERED' && !delivery.platformDepositReceivedAt;
+                return (
+                  <article key={delivery.id} className="rounded-2xl border border-stone-200 p-4 sm:p-5">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="font-bold text-stone-900">{delivery.orderNumber} · {delivery.subOrderNumber}</h3>
+                          <span className="rounded-full bg-stone-100 px-2.5 py-1 text-[10px] font-bold text-stone-700">{delivery.orderStatus.replace(/_/g, ' ')}</span>
+                          <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${delivery.deliveryStatus === 'DELIVERED' ? 'bg-emerald-100 text-emerald-800' : 'bg-sky-100 text-sky-900'}`}>{delivery.deliveryStatus.replace(/_/g, ' ')}</span>
+                        </div>
+                        <p className="mt-1 text-xs text-stone-600">{delivery.sellerName} → {delivery.recipientName} · {delivery.dropoffCity}</p>
+                        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-stone-500">
+                          <span>Total à collecter : <strong className="text-stone-800">{formatCdfPrice(delivery.amountDueCdf)}</strong></span>
+                          <span>Commission : {formatCdfPrice(delivery.commissionAmountCdf)} ({delivery.commissionRate} %)</span>
+                          <span>Net vendeur : {formatCdfPrice(delivery.sellerEarningsCdf)}</span>
+                          {delivery.courierName && <span>Livreur : {delivery.courierName} · {delivery.courierPhone}</span>}
+                          {delivery.collectedAmountCdf !== null && delivery.collectedAmountCdf !== undefined && (
+                            <span>Collecté : {formatCdfPrice(delivery.collectedAmountCdf)} ({delivery.collectionMethod === 'CASH' ? 'espèces' : 'Mobile Money direct'})</span>
+                          )}
+                        </div>
+                      </div>
+                      {canAssign ? (
+                        <div className="flex w-full flex-col gap-2 sm:flex-row lg:w-auto">
+                          <select
+                            aria-label={`Livreur pour ${delivery.orderNumber}`}
+                            value={selectedCourierByDelivery[delivery.id] ?? ''}
+                            onChange={(event) => setSelectedCourierByDelivery((current) => ({ ...current, [delivery.id]: event.target.value }))}
+                            className="min-w-52 rounded-xl border border-stone-300 bg-white px-3 py-2.5 text-xs"
+                          >
+                            <option value="">Choisir un livreur disponible</option>
+                            {couriers.filter((courier) => courier.isActive && courier.isAvailable && courier.status === 'VERIFIED').map((courier) => (
+                              <option key={courier.id} value={courier.id}>{courier.fullName} · {courier.operatingArea}</option>
+                            ))}
+                          </select>
+                          <Button variant="primary" size="sm" isLoading={assigningDeliveryId === delivery.id} onClick={() => void assignCourier(delivery)}>
+                            Affecter
+                          </Button>
+                        </div>
+                      ) : needsDeposit ? (
+                        <Button variant="primary" size="sm" isLoading={confirmingDepositId === delivery.id} onClick={() => void confirmPlatformDeposit(delivery)}>
+                          Confirmer la remise
+                        </Button>
+                      ) : delivery.platformDepositReceivedAt ? (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800">
+                          <IconCheck className="h-4 w-4" aria-hidden="true" /> Fonds reçus · {formatCdfPrice(delivery.platformDepositAmountCdf ?? 0)}
+                        </span>
+                      ) : null}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="rounded-2xl border border-dashed border-stone-300 bg-stone-50 p-8 text-center text-sm text-stone-500">Aucune commande à affecter ou à rapprocher.</p>
+          )}
         </section>
 
       </main>
