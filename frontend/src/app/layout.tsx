@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "../context/AuthContext";
 import { CartProvider } from "../context/CartContext";
+import { RealtimeProvider } from "../context/RealtimeContext";
 import { Navbar } from "../components/layout/Navbar";
 import { Footer } from "../components/layout/Footer";
 
@@ -20,13 +21,15 @@ export default function RootLayout({
     <html lang="fr" className="h-full antialiased">
       <body className="min-h-full flex flex-col font-sans bg-stone-50 text-stone-900">
         <AuthProvider>
-          <CartProvider>
-            <div className="min-h-screen flex flex-col bg-white">
-              <Navbar />
-              <main className="flex-1">{children}</main>
-              <Footer />
-            </div>
-          </CartProvider>
+          <RealtimeProvider>
+            <CartProvider>
+              <div className="min-h-screen flex flex-col bg-white">
+                <Navbar />
+                <main className="flex-1">{children}</main>
+                <Footer />
+              </div>
+            </CartProvider>
+          </RealtimeProvider>
         </AuthProvider>
       </body>
     </html>
