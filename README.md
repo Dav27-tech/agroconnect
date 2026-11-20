@@ -94,7 +94,7 @@ agroConnect/
 │   │       ├── sellers/      # Profils vendeurs-agriculteurs
 │   │       ├── categories/   # Filières agricoles congolaises
 │   │       ├── products/     # Catalogue commun des produits
-│   │       ├── offers/       # Offres vendeurs (Prix gros/détail, stock)
+│   │       ├── offers/       # Offres vendeurs (prix unitaires et par quantité, stock)
 │   │       ├── inventory/    # Stock partagé anti-survente
 │   │       ├── seller-services/# Conditionnement, tri, express
 │   │       ├── cart/         # Panier multi-vendeurs
