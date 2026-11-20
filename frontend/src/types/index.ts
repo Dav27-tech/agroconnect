@@ -1,6 +1,6 @@
 export type SupportedCurrency = 'CDF';
 
-export type UserRole = 'BUYER' | 'SELLER' | 'ADMIN';
+export type UserRole = 'BUYER' | 'SELLER' | 'DELIVERY_PERSON' | 'ADMIN';
 
 export type SellerType = 'FARMER' | 'RESELLER' | 'SUPPLIER';
 
@@ -33,39 +33,6 @@ export type SubOrderStatus =
   | 'REJECTED'
   | 'CANCELLED';
 
-export type PaymentStatus = 'PENDING' | 'PROCESSING' | 'SUCCEEDED' | 'FAILED';
-
-export interface PaymentAttempt {
-  transactionId: string;
-  reference: string;
-  purpose: 'ORDER' | 'SUBSCRIPTION' | 'PROMOTION';
-  orderNumber?: string;
-  amountCdf?: number;
-  currency: 'CDF';
-  status: PaymentStatus;
-  payoutStatus?: 'PENDING' | 'PROCESSING' | 'SUCCEEDED' | 'FAILED';
-  payoutReference?: string;
-  providerTransactionId?: string;
-  verifiedAt?: string;
-}
-
-export interface SellerSubscriptionStatus {
-  startsAt: string | null;
-  expiresAt: string | null;
-  amountCdf?: number;
-  monthlyPriceCdf?: number;
-  currency?: 'CDF';
-  current: boolean;
-}
-
-export interface PromotionPackage {
-  id: string;
-  name: string;
-  durationDays: number;
-  priceCdf: number;
-  isActive?: boolean;
-}
-
 export interface User {
   id: string;
   phoneNumber: string;
@@ -74,6 +41,68 @@ export interface User {
   email: string;
   sellerId?: string;
   preferredLang?: string;
+  deliveryProfile?: CourierProfile | null;
+}
+
+export type DeliveryStatus = 'PENDING' | 'ASSIGNED' | 'PICKED_UP' | 'IN_TRANSIT' | 'ARRIVED' | 'DELIVERED' | 'FAILED' | 'CANCELLED';
+export type ManualCollectionMethod = 'CASH' | 'MOBILE_MONEY_DIRECT';
+
+export interface CourierProfile {
+  id: string;
+  userId: string;
+  companyName?: string | null;
+  vehicleType?: string | null;
+  plateNumber?: string | null;
+  operatingArea: string;
+  isAvailable: boolean;
+  status: string;
+}
+
+export interface CourierAccount extends CourierProfile {
+  fullName: string;
+  email: string;
+  phoneNumber: string;
+  isActive: boolean;
+  activeDeliveriesCount: number;
+}
+
+export interface CourierDelivery {
+  id: string;
+  trackingCode: string;
+  deliveryStatus: DeliveryStatus;
+  pickupProvince: string;
+  pickupCity: string;
+  pickupAddress: string;
+  dropoffProvince: string;
+  dropoffCity: string;
+  dropoffAddress: string;
+  collectionMethod?: ManualCollectionMethod | null;
+  collectedAmountCdf?: number | null;
+  collectedAt?: string | null;
+  platformDepositReceivedAt?: string | null;
+  subOrderId: string;
+  subOrderNumber: string;
+  orderStatus: SubOrderStatus;
+  amountDueCdf: number;
+  orderNumber: string;
+  recipientName: string;
+  recipientPhone: string;
+  deliveryInstructions?: string | null;
+  sellerName: string;
+  sellerPhone: string;
+  items: Array<{ productName: string; quantity: number; unitPriceCdf: number }>;
+}
+
+export interface DeliveryOperation extends CourierDelivery {
+  commissionRate: number;
+  commissionAmountCdf: number;
+  sellerEarningsCdf: number;
+  payoutStatus: string;
+  platformDepositAmountCdf?: number | null;
+  platformDepositReceivedAt?: string | null;
+  courierId?: string | null;
+  courierName?: string | null;
+  courierPhone?: string | null;
 }
 
 export interface Category {
@@ -225,6 +254,13 @@ export interface SubOrder {
   commissionRate: number;
   commissionAmountCdf: number;
   payoutAmountCdf: number;
+  payoutStatus?: string;
+  deliveryStatus?: DeliveryStatus | null;
+  collectionMethod?: ManualCollectionMethod | null;
+  collectedAmountCdf?: number | null;
+  platformDepositReceivedAt?: string | null;
+  sellerPayoutStatus?: string | null;
+  sellerConfirmedAt?: string | null;
   items?: OrderItem[];
   createdAt?: string;
 }
