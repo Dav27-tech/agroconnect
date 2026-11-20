@@ -13,9 +13,11 @@ import {
   SaleType,
   StockMovementType,
   SubOrderStatus,
-  PaymentAttempt,
-  PromotionPackage,
-  SellerSubscriptionStatus,
+  CourierAccount,
+  CourierDelivery,
+  DeliveryOperation,
+  DeliveryStatus,
+  ManualCollectionMethod,
 } from '../types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
@@ -304,59 +306,57 @@ export const api = {
         body: JSON.stringify({ status }),
       });
     },
-  },
 
-  payments: {
-    async initiateOrderPayment(
-      data: { subOrderId: string; provider: 'M_PESA' | 'ORANGE_MONEY' | 'AIRTEL_MONEY' | 'AFRIMONEY'; customerPhoneNumber: string },
-      idempotencyKey: string
-    ): Promise<PaymentAttempt> {
-      return await request<PaymentAttempt>('/payments/checkout', {
-        method: 'POST',
-        headers: { 'Idempotency-Key': idempotencyKey },
-        body: JSON.stringify(data),
-      });
-    },
-
-    async initiateSubscriptionPayment(
-      data: { provider: 'M_PESA' | 'ORANGE_MONEY' | 'AIRTEL_MONEY' | 'AFRIMONEY'; customerPhoneNumber?: string },
-      idempotencyKey: string
-    ): Promise<PaymentAttempt> {
-      return await request<PaymentAttempt>('/payments/subscription/checkout', {
-        method: 'POST',
-        headers: { 'Idempotency-Key': idempotencyKey },
-        body: JSON.stringify(data),
-      });
-    },
-
-    async getMySubscription(): Promise<SellerSubscriptionStatus> {
-      return await request<SellerSubscriptionStatus>('/payments/subscription/me');
-    },
-
-    async listPromotionPackages(): Promise<PromotionPackage[]> {
-      return await request<PromotionPackage[]>('/payments/promotion-packages');
-    },
-
-    async initiatePromotionPayment(
-      offerId: string,
-      data: { packageId: string; provider: 'M_PESA' | 'ORANGE_MONEY' | 'AIRTEL_MONEY' | 'AFRIMONEY'; customerPhoneNumber?: string },
-      idempotencyKey: string
-    ): Promise<PaymentAttempt> {
-      return await request<PaymentAttempt>(`/payments/offers/${offerId}/promotion`, {
-        method: 'POST',
-        headers: { 'Idempotency-Key': idempotencyKey },
-        body: JSON.stringify(data),
-      });
-    },
-
-    async verify(transactionId: string): Promise<PaymentAttempt> {
-      return await request<PaymentAttempt>(`/payments/verify/${transactionId}`);
+    async confirmSellerPayout(subOrderId: string): Promise<{ subOrderId: string; payoutStatus: string; sellerConfirmedAt: string }> {
+      return await request(`/orders/suborder/${subOrderId}/confirm-payout`, { method: 'POST' });
     },
   },
 
   // --------------------------------------------------------------------------
-  // LIVRAISON & TRAÇABILITÉ
+  // LIVRAISON & COLLECTE MANUELLE
   // --------------------------------------------------------------------------
+  deliveries: {
+    async listMine(): Promise<CourierDelivery[]> {
+      return await request<CourierDelivery[]>('/deliveries/mine');
+    },
+
+    async listOperations(): Promise<DeliveryOperation[]> {
+      return await request<DeliveryOperation[]>('/deliveries/operations');
+    },
+
+    async assign(deliveryId: string, personnelId: string): Promise<{ deliveryId: string; courierId: string; status: string }> {
+      return await request(`/deliveries/${deliveryId}/assign`, {
+        method: 'POST',
+        body: JSON.stringify({ personnelId }),
+      });
+    },
+
+    async updateStatus(deliveryId: string, status: Extract<DeliveryStatus, 'PICKED_UP' | 'IN_TRANSIT' | 'ARRIVED'>): Promise<{ id: string; status: DeliveryStatus }> {
+      return await request(`/deliveries/${deliveryId}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status }),
+      });
+    },
+
+    async recordCollection(deliveryId: string, data: {
+      method: ManualCollectionMethod;
+      amountCdf: number;
+      reference?: string;
+    }): Promise<{ deliveryId: string; status: DeliveryStatus; amountCdf: number; collectionMethod?: ManualCollectionMethod }> {
+      return await request(`/deliveries/${deliveryId}/collection`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+
+    async confirmPlatformDeposit(deliveryId: string, amountCdf: number): Promise<{ deliveryId: string; amountCdf: number; receivedAt: string }> {
+      return await request(`/deliveries/${deliveryId}/platform-deposit`, {
+        method: 'POST',
+        body: JSON.stringify({ amountCdf }),
+      });
+    },
+  },
+
   // --------------------------------------------------------------------------
   // GESTION DES STOCKS & INVENTAIRE VENDEUR
   // --------------------------------------------------------------------------
@@ -424,22 +424,35 @@ export const api = {
   // FINANCE
   // --------------------------------------------------------------------------
   finance: {
+    async getPlatformSummary(): Promise<{
+      totalRecords: number;
+      grossMarketplaceVolumeCdf: number;
+      agroConnectCommissionCdf: number;
+      sellerEarningsCdf: number;
+      platformReceivedCdf: number;
+      awaitingPlatformDepositCdf: number;
+      awaitingSellerConfirmationCdf: number;
+    }> {
+      return await request('/finance/summary');
+    },
+
     async getSellerFinancials(sellerId: string): Promise<{
       sellerId: string;
-      businessName: string;
       summary: {
         grossSalesCdf: number;
-        commissionsPaidCdf: number;
-        netEarningsCdf: number;
+        commissionCdf: number;
+        sellerEarningsCdf: number;
       };
       records: Array<{
-        id: string;
         subOrderId: string;
         grossAmountCdf: number;
         commissionRate: number;
         commissionAmountCdf: number;
         sellerEarningsCdf: number;
-        status: string;
+        payoutStatus: string;
+        deliveryStatus: DeliveryStatus | null;
+        platformDepositReceivedAt: string | null;
+        sellerConfirmedAt: string | null;
         recordedAt: string;
       }>;
     }> {
@@ -448,36 +461,41 @@ export const api = {
   },
 
   admin: {
-    async getPaymentSettings(): Promise<{ receivingPhoneNumber: string | null; monthlySubscriptionCdf: number; currency: 'CDF' }> {
-      return await request('/admin/payment-settings');
+    async getCommissionSettings(): Promise<{ commissionRatePercent: number }> {
+      return await request('/admin/commission-settings');
     },
 
-    async updatePaymentSettings(data: { receivingPhoneNumber?: string | null; monthlySubscriptionCdf?: number }): Promise<{
-      receivingPhoneNumber: string | null;
-      monthlySubscriptionCdf: number;
-      currency: 'CDF';
-    }> {
-      return await request('/admin/payment-settings', {
+    async updateCommissionSettings(commissionRatePercent: number): Promise<{ commissionRatePercent: number }> {
+      return await request('/admin/commission-settings', {
         method: 'PATCH',
-        body: JSON.stringify(data),
+        body: JSON.stringify({ commissionRatePercent }),
       });
     },
 
-    async listPromotionPackages(): Promise<PromotionPackage[]> {
-      return await request('/admin/promotion-packages');
+    async listCouriers(): Promise<CourierAccount[]> {
+      return await request<CourierAccount[]>('/admin/couriers');
     },
 
-    async createPromotionPackage(data: { name: string; durationDays: number; priceCdf: number }): Promise<PromotionPackage> {
-      return await request('/admin/promotion-packages', {
+    async createCourier(data: {
+      fullName: string;
+      email: string;
+      phoneNumber: string;
+      password: string;
+      companyName?: string;
+      vehicleType?: string;
+      plateNumber?: string;
+      operatingArea: string;
+    }): Promise<CourierAccount> {
+      return await request<CourierAccount>('/admin/couriers', {
         method: 'POST',
         body: JSON.stringify(data),
       });
     },
 
-    async updatePromotionPackage(packageId: string, data: Partial<Pick<PromotionPackage, 'name' | 'durationDays' | 'priceCdf' | 'isActive'>>): Promise<PromotionPackage> {
-      return await request(`/admin/promotion-packages/${packageId}`, {
+    async updateCourierAvailability(courierId: string, isAvailable: boolean): Promise<{ id: string; isAvailable: boolean }> {
+      return await request(`/admin/couriers/${courierId}/availability`, {
         method: 'PATCH',
-        body: JSON.stringify(data),
+        body: JSON.stringify({ isAvailable }),
       });
     },
 
