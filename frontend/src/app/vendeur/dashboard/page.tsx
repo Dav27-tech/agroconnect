@@ -8,6 +8,7 @@ import { useAuth } from '../../../context/AuthContext';
 import { PageHeader } from '../../../components/layout/PageHeader';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
+import { DashboardBarChart } from '../../../components/dashboard/DashboardBarChart';
 import { formatCdfPrice } from '../../../utils/format';
 import {
   IconBasket,
@@ -16,7 +17,6 @@ import {
   IconPlant,
   IconShieldCheck,
   IconShoppingBag,
-  IconStar,
   IconTrash,
 } from '../../../components/ui/Icons';
 import {
@@ -29,6 +29,7 @@ import {
 } from '../../../types';
 import { api } from '../../../services/api';
 import { DRC_PROVINCES } from '../../../constants/drc';
+import { useRealtime } from '../../../context/RealtimeContext';
 
 const orderStatusLabels: Record<SubOrderStatus, string> = {
   PENDING: 'À confirmer',
@@ -65,7 +66,7 @@ const verificationLabels: Record<string, string> = {
   REJECTED: 'Profil refusé',
 };
 
-function formatOrderDate(value?: string): string | null {
+function formatOrderDate(value?: string | null): string | null {
   if (!value) return null;
   const date = new Date(value);
   return Number.isNaN(date.getTime())
@@ -74,6 +75,7 @@ function formatOrderDate(value?: string): string | null {
 }
 
 export default function SellerDashboardPage() {
+  const socket = useRealtime();
   const { user, isLoading: isAuthLoading, isSeller } = useAuth();
   const router = useRouter();
   const sellerId = user?.sellerId;
@@ -85,16 +87,20 @@ export default function SellerDashboardPage() {
   const [offers, setOffers] = useState<SellerOfferItem[]>([]);
   const [orders, setOrders] = useState<SubOrder[]>([]);
   const [ordersError, setOrdersError] = useState('');
+  const [sellerFinancials, setSellerFinancials] = useState<Awaited<ReturnType<typeof api.finance.getSellerFinancials>> | null>(null);
+  const [financialsError, setFinancialsError] = useState('');
   const [movements, setMovements] = useState<StockMovement[]>([]);
   const [catalogProducts, setCatalogProducts] = useState<ProductCatalogItem[]>([]);
   const [inventoryError, setInventoryError] = useState('');
   const [pageError, setPageError] = useState('');
   const [hasLoadedData, setHasLoadedData] = useState(false);
+  const [profilePhone, setProfilePhone] = useState(user?.phoneNumber ?? '');
+  const [isSavingPhone, setIsSavingPhone] = useState(false);
 
   const [notification, setNotification] = useState<string>('');
   const [notificationType, setNotificationType] = useState<'success' | 'error'>('success');
-  const [subscriptionNoticeOfferId, setSubscriptionNoticeOfferId] = useState<string | null>(null);
   const [updatingSubOrderId, setUpdatingSubOrderId] = useState<string | null>(null);
+  const [confirmingPayoutId, setConfirmingPayoutId] = useState<string | null>(null);
 
   // Formulaire Mouvement de stock
   const [mvtOfferId, setMvtOfferId] = useState<string>('');
@@ -117,7 +123,9 @@ export default function SellerDashboardPage() {
   const [newProvince, setNewProvince] = useState<string>('');
   const [newCity, setNewCity] = useState<string>('');
   const [newGrade, setNewGrade] = useState<string>('');
+  const [newIsFeatured, setNewIsFeatured] = useState(false);
   const [isCreatingOffer, setIsCreatingOffer] = useState(false);
+  const [updatingFeaturedId, setUpdatingFeaturedId] = useState<string | null>(null);
   const [isDeletingOfferId, setIsDeletingOfferId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -150,6 +158,17 @@ export default function SellerDashboardPage() {
         }),
         api.products.list(),
         api.sellers.getById(sellerId),
+        api.finance.getSellerFinancials(sellerId)
+          .then((result) => {
+            setSellerFinancials(result);
+            setFinancialsError('');
+            return result;
+          })
+          .catch((error: unknown) => {
+            setSellerFinancials(null);
+            setFinancialsError(error instanceof Error ? error.message : 'Impossible de charger le relevé des règlements.');
+            return null;
+          }),
       ]);
 
       setOffers(offersList || []);
@@ -171,10 +190,35 @@ export default function SellerDashboardPage() {
   }, [sellerId]);
 
   useEffect(() => {
+    if (user?.phoneNumber) {
+      startTransition(() => {
+        setProfilePhone(user.phoneNumber);
+      });
+    }
+  }, [user?.phoneNumber]);
+
+  useEffect(() => {
     startTransition(() => {
       void loadSellerData();
     });
   }, [loadSellerData]);
+
+  useEffect(() => {
+    if (!socket || !sellerId) return;
+    const refreshSellerData = () => {
+      void loadSellerData();
+    };
+    socket.on('order.created', refreshSellerData);
+    socket.on('order.updated', refreshSellerData);
+    socket.on('delivery.updated', refreshSellerData);
+    socket.on('inventory.updated', refreshSellerData);
+    return () => {
+      socket.off('order.created', refreshSellerData);
+      socket.off('order.updated', refreshSellerData);
+      socket.off('delivery.updated', refreshSellerData);
+      socket.off('inventory.updated', refreshSellerData);
+    };
+  }, [loadSellerData, sellerId, socket]);
 
   const notify = (msg: string, type: 'success' | 'error' = 'success') => {
     setNotification(msg);
@@ -274,11 +318,13 @@ export default function SellerDashboardPage() {
         originCity: newCity,
         qualityGrade: newGrade,
         servicesOffered: [],
+        isFeatured: newIsFeatured,
       });
 
       notify('Nouvelle offre publiée avec succès au catalogue AgroConnect.');
       setActiveTab('offers');
       setNewImageFile(null);
+      setNewIsFeatured(false);
       setImageInputKey((current) => current + 1);
       await loadSellerData();
     } catch (err) {
@@ -288,18 +334,30 @@ export default function SellerDashboardPage() {
     }
   };
 
-  const toggleFeatured = async (offer: SellerOfferItem) => {
-    if (!offer.isFeatured) {
-      setSubscriptionNoticeOfferId(offer.id);
-      return;
-    }
-
+  const handleSaveSellerPhone = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!sellerId) return;
+    setIsSavingPhone(true);
     try {
-      await api.offers.update(offer.id, { isFeatured: false });
-      setOffers((current) => current.map((item) => item.id === offer.id ? { ...item, isFeatured: false } : item));
-      notify('Offre retirée de la mise en avant.');
+      await api.sellers.updateProfile(sellerId, { phoneNumber: profilePhone.trim() });
+      notify('Coordonnée de règlement externe mise à jour.');
     } catch (error) {
       notify(`Erreur : ${(error as Error).message}`, 'error');
+    } finally {
+      setIsSavingPhone(false);
+    }
+  };
+
+  const handleConfirmPayout = async (subOrderId: string) => {
+    setConfirmingPayoutId(subOrderId);
+    try {
+      await api.orders.confirmSellerPayout(subOrderId);
+      notify('Réception du règlement confirmée.');
+      await loadSellerData();
+    } catch (error) {
+      notify(`Confirmation impossible : ${(error as Error).message}`, 'error');
+    } finally {
+      setConfirmingPayoutId(null);
     }
   };
 
@@ -322,11 +380,76 @@ export default function SellerDashboardPage() {
     }
   };
 
+  const handleToggleFeatured = async (offer: SellerOfferItem) => {
+    setUpdatingFeaturedId(offer.id);
+    try {
+      await api.offers.update(offer.id, { isFeatured: !offer.isFeatured });
+      notify(
+        offer.isFeatured
+          ? 'Mise en avant retirée de cette offre.'
+          : 'Offre mise à la une, sans paiement en ligne.'
+      );
+      await loadSellerData();
+    } catch (error) {
+      notify(`Erreur lors de la mise à jour : ${(error as Error).message}`, 'error');
+    } finally {
+      setUpdatingFeaturedId(null);
+    }
+  };
+
   const availableOfferCount = offers.filter((offer) => offer.isAvailable && offer.stockQuantity > 0).length;
   const pendingOrderCount = orders.filter((order) => order.status === 'PENDING').length;
   const preparingOrderCount = orders.filter((order) => order.status === 'PREPARING').length;
   const readyOrderCount = orders.filter((order) => order.status === 'READY_FOR_PICKUP').length;
   const totalPayoutCdf = orders.reduce((sum, o) => sum + (o.payoutAmountCdf ?? 0), 0);
+  const payoutRecords = sellerFinancials?.records ?? [];
+  const payoutsAwaitingDeposit = payoutRecords.filter(
+    (record) => record.payoutStatus === 'PENDING' && !record.platformDepositReceivedAt
+  );
+  const payoutsAwaitingConfirmation = payoutRecords.filter(
+    (record) => record.payoutStatus === 'APPROVED' && record.platformDepositReceivedAt
+  );
+  const payoutsConfirmed = payoutRecords.filter((record) => record.payoutStatus === 'COMPLETED');
+  const awaitingDepositCdf = payoutsAwaitingDeposit.reduce((sum, record) => sum + record.sellerEarningsCdf, 0);
+  const awaitingConfirmationCdf = payoutsAwaitingConfirmation.reduce((sum, record) => sum + record.sellerEarningsCdf, 0);
+  const confirmedPayoutCdf = payoutsConfirmed.reduce((sum, record) => sum + record.sellerEarningsCdf, 0);
+  const activeOrders = orders.filter((order) => !['CANCELLED', 'REJECTED'].includes(order.status));
+  const orderChartData = [
+    { label: 'À confirmer', value: orders.filter((order) => order.status === 'PENDING').length, tone: 'amber' as const },
+    {
+      label: 'En préparation',
+      value: orders.filter((order) => ['CONFIRMED', 'PREPARING'].includes(order.status)).length,
+      tone: 'sky' as const,
+    },
+    {
+      label: 'Prêtes ou en livraison',
+      value: orders.filter((order) => ['READY_FOR_PICKUP', 'IN_DELIVERY'].includes(order.status)).length,
+      tone: 'blue' as const,
+    },
+    { label: 'Livrées', value: orders.filter((order) => order.status === 'DELIVERED').length, tone: 'emerald' as const },
+    {
+      label: 'Annulées ou refusées',
+      value: orders.filter((order) => ['CANCELLED', 'REJECTED'].includes(order.status)).length,
+      tone: 'rose' as const,
+    },
+  ];
+  const sellerFinanceChartData = [
+    {
+      label: 'Ventes brutes',
+      value: activeOrders.reduce((sum, order) => sum + order.subtotalCdf, 0),
+      tone: 'sky' as const,
+    },
+    {
+      label: 'Commission AgroConnect',
+      value: activeOrders.reduce((sum, order) => sum + order.commissionAmountCdf, 0),
+      tone: 'amber' as const,
+    },
+    {
+      label: 'Revenu net vendeur',
+      value: activeOrders.reduce((sum, order) => sum + order.payoutAmountCdf, 0),
+      tone: 'emerald' as const,
+    },
+  ];
 
   if (isAuthLoading || !user || !isSeller || !sellerId) {
     return (
@@ -433,8 +556,9 @@ export default function SellerDashboardPage() {
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id as typeof activeTab)}
+                disabled={tab.id === 'new-offer' && sellerVerificationStatus !== 'VERIFIED'}
                 aria-current={isActive ? 'page' : undefined}
-                className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-bold transition sm:px-4 ${
+                className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-bold transition disabled:cursor-not-allowed disabled:opacity-40 sm:px-4 ${
                   isActive
                     ? 'bg-emerald-800 text-white shadow-sm'
                     : tab.isPrimary
@@ -456,6 +580,84 @@ export default function SellerDashboardPage() {
 
         {activeTab === 'overview' && (
           <div className="space-y-8">
+            <div className="grid gap-5 lg:grid-cols-2">
+              <section aria-labelledby="seller-settlement-title" className="rounded-3xl border border-emerald-200 bg-gradient-to-br from-emerald-950 to-emerald-800 p-5 text-white shadow-sm sm:p-7">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h2 id="seller-settlement-title" className="text-base font-bold">Règlement des ventes</h2>
+                    <p className="mt-2 text-xs leading-relaxed text-emerald-100">
+                      Le client règle le livreur. Après remise des fonds à AgroConnect, confirmez ici la réception de votre part.
+                    </p>
+                  </div>
+                  <IconCheck className="h-6 w-6 shrink-0 text-emerald-200" aria-hidden="true" />
+                </div>
+                {financialsError ? (
+                  <div role="alert" className="mt-5 rounded-2xl border border-white/20 bg-white/10 p-4 text-xs text-emerald-50">
+                    <p>Impossible de charger le relevé des règlements : {financialsError}</p>
+                    <button
+                      type="button"
+                      onClick={() => void loadSellerData()}
+                      className="mt-2 font-bold underline underline-offset-2"
+                    >
+                      Réessayer
+                    </button>
+                  </div>
+                ) : sellerFinancials ? (
+                  <>
+                    <div className="mt-6 grid gap-3 sm:grid-cols-3">
+                      <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
+                        <p className="text-[10px] font-bold uppercase tracking-wide text-emerald-100">En attente du dépôt</p>
+                        <p className="mt-1 text-lg font-black">{formatCdfPrice(awaitingDepositCdf)}</p>
+                        <p className="mt-1 text-[10px] text-emerald-100">{payoutsAwaitingDeposit.length} règlement(s)</p>
+                      </div>
+                      <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
+                        <p className="text-[10px] font-bold uppercase tracking-wide text-emerald-100">À confirmer</p>
+                        <p className="mt-1 text-lg font-black">{formatCdfPrice(awaitingConfirmationCdf)}</p>
+                        <p className="mt-1 text-[10px] text-emerald-100">{payoutsAwaitingConfirmation.length} règlement(s)</p>
+                      </div>
+                      <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
+                        <p className="text-[10px] font-bold uppercase tracking-wide text-emerald-100">Déjà confirmé</p>
+                        <p className="mt-1 text-lg font-black">{formatCdfPrice(confirmedPayoutCdf)}</p>
+                        <p className="mt-1 text-[10px] text-emerald-100">{payoutsConfirmed.length} règlement(s)</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('orders')}
+                      className="mt-4 text-xs font-bold text-emerald-100 underline underline-offset-2 hover:text-white"
+                    >
+                      Voir les commandes et confirmer un règlement
+                    </button>
+                  </>
+                ) : (
+                  <p role="status" className="mt-5 text-xs text-emerald-100">Chargement du relevé des règlements…</p>
+                )}
+              </section>
+
+              <section aria-labelledby="seller-phone-title" className="rounded-3xl border border-stone-200 bg-white p-5 shadow-sm sm:p-7">
+                <h2 id="seller-phone-title" className="text-base font-bold text-stone-900">Coordonnée de règlement externe</h2>
+                <p className="mt-1 text-xs leading-relaxed text-stone-500">
+                  Utilisée par l’administration pour vous joindre au sujet de votre règlement, effectué hors de l’application.
+                </p>
+                <form onSubmit={(event) => void handleSaveSellerPhone(event)} className="mt-5 space-y-4">
+                  <label className="block text-xs font-bold text-stone-700">
+                    Téléphone de contact
+                    <input
+                      type="tel"
+                      value={profilePhone}
+                      onChange={(event) => setProfilePhone(event.target.value)}
+                      required
+                      pattern="(\+243|0)[0-9]{9}"
+                      className="mt-1.5 w-full rounded-xl border border-stone-300 bg-white px-3 py-2.5 text-sm"
+                    />
+                  </label>
+                  <Button type="submit" variant="outline" size="sm" isLoading={isSavingPhone}>
+                    Enregistrer le numéro
+                  </Button>
+                </form>
+              </section>
+            </div>
+
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               {[
                 {
@@ -499,6 +701,22 @@ export default function SellerDashboardPage() {
                 </article>
               ))}
             </div>
+
+            <section aria-label="Graphiques de performance vendeur" className="grid gap-5 xl:grid-cols-2">
+              <DashboardBarChart
+                title="État des commandes"
+                description="Répartition de vos sous-commandes selon leur étape de traitement."
+                data={orderChartData}
+                emptyMessage="Les commandes reçues apparaîtront ici."
+              />
+              <DashboardBarChart
+                title="Activité commerciale cumulée"
+                description="Montants des commandes actives et répartition de la commission, en CDF."
+                data={sellerFinanceChartData}
+                formatValue={formatCdfPrice}
+                emptyMessage="Les ventes apparaîtront ici après vos premières commandes."
+              />
+            </section>
 
             <div className="grid gap-6 lg:grid-cols-[1.35fr_0.85fr]">
               <section aria-labelledby="order-overview-title" className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm sm:p-7">
@@ -580,6 +798,7 @@ export default function SellerDashboardPage() {
                 size="sm"
                 leftIcon={<IconPlus className="w-4 h-4" />}
                 onClick={() => setActiveTab('new-offer')}
+                disabled={sellerVerificationStatus !== 'VERIFIED'}
               >
                 Nouvelle Offre
               </Button>
@@ -652,35 +871,23 @@ export default function SellerDashboardPage() {
                     )}
                   </div>
 
-                  {subscriptionNoticeOfferId === offer.id && (
-                    <div className="mx-4 mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3" role="status">
-                      <div className="flex items-start gap-2">
-                        <IconStar className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" aria-hidden="true" />
-                        <div className="min-w-0">
-                          <p className="text-xs font-bold text-amber-900">Abonnement requis</p>
-                          <p className="mt-1 text-[11px] leading-relaxed text-amber-800">
-                            Un abonnement sera nécessaire pour mettre cette offre en avant. Le paiement sera disponible prochainement.
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setSubscriptionNoticeOfferId(null)}
-                          className="text-[11px] font-bold text-amber-900 hover:underline"
-                        >
-                          Fermer
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
                   <div className="mt-auto grid grid-cols-2 gap-2 p-4">
                     <button
                       type="button"
-                      onClick={() => void toggleFeatured(offer)}
-                      className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-amber-50 px-2 py-2 text-xs font-bold text-amber-800 transition hover:bg-amber-100"
+                      onClick={() => void handleToggleFeatured(offer)}
+                      disabled={updatingFeaturedId === offer.id}
+                      aria-pressed={Boolean(offer.isFeatured)}
+                      className={`rounded-xl border px-2 py-2 text-xs font-bold transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                        offer.isFeatured
+                          ? 'border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100'
+                          : 'border-stone-200 bg-white text-stone-700 hover:bg-stone-50'
+                      }`}
                     >
-                      <IconStar className="h-4 w-4" aria-hidden="true" />
-                      {offer.isFeatured ? 'Retirer la une' : 'Mettre en avant'}
+                      {updatingFeaturedId === offer.id
+                        ? 'Mise à jour…'
+                        : offer.isFeatured
+                          ? 'Retirer de la une'
+                          : 'Mettre à la une'}
                     </button>
                     <button
                       type="button"
@@ -829,7 +1036,7 @@ export default function SellerDashboardPage() {
             </div>
 
             {/* Journal d'audit des mouvements */}
-            <div className="lg:col-span-7 bg-white p-6 sm:p-8 rounded-3xl border border-stone-200 shadow-xs space-y-4">
+            <div className="min-w-0 lg:col-span-7 bg-white p-6 sm:p-8 rounded-3xl border border-stone-200 shadow-xs space-y-4">
               <h3 className="text-base font-bold text-stone-900 border-b border-stone-100 pb-3">
                 Journal d&apos;Audit des Mouvements ({movements.length})
               </h3>
@@ -840,9 +1047,9 @@ export default function SellerDashboardPage() {
                 </p>
               )}
 
-              <div className="divide-y divide-stone-100 max-h-[500px] overflow-y-auto space-y-3">
+              <div className="min-w-0 divide-y divide-stone-100">
                 {movements.length ? movements.map((m) => (
-                  <div key={m.id} className="pt-3 first:pt-0 text-xs space-y-1">
+                  <div key={m.id} className="min-w-0 py-3 first:pt-0 text-xs space-y-1">
                     <div className="flex justify-between items-center">
                       <span className="font-bold text-stone-900">
                         {m.movementType === 'ORDER_RESERVATION'
@@ -862,11 +1069,11 @@ export default function SellerDashboardPage() {
                       </span>
                     </div>
 
-                    <div className="flex justify-between text-stone-500 text-[11px]">
-                      <span>
+                    <div className="flex flex-col gap-1 text-[11px] text-stone-500 sm:flex-row sm:items-center sm:justify-between">
+                      <span className="min-w-0">
                         Avant : {m.previousStock} ; après : {m.newStock}
                       </span>
-                      <span>{new Date(m.createdAt).toLocaleString('fr-FR')}</span>
+                      <span className="shrink-0 sm:text-right">{new Date(m.createdAt).toLocaleString('fr-FR')}</span>
                     </div>
 
                     {m.notes && <p className="text-stone-600 italic text-[11px]">{m.notes}</p>}
@@ -945,17 +1152,25 @@ export default function SellerDashboardPage() {
                           )}
                         </div>
                         <div className="rounded-xl border border-emerald-100 bg-emerald-50/70 px-4 py-3 md:min-w-52">
-                          <p className="text-[10px] font-bold uppercase tracking-wide text-emerald-800">Montant net vendeur</p>
+                          <p className="text-[10px] font-bold uppercase tracking-wide text-emerald-800">Net vendeur</p>
                           <p className="mt-1 text-base font-black text-emerald-900">{formatCdfPrice(sub.payoutAmountCdf)}</p>
-                          <p className="mt-1 text-[10px] text-emerald-800">Montant calculé pour cette sous-commande</p>
+                          <p className="mt-1 text-[10px] text-emerald-800">Après commission de {sub.commissionRate}%</p>
                         </div>
                       </div>
 
                       <footer className="flex flex-col gap-3 border-t border-stone-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                         <p className="text-xs font-medium text-stone-500">
-                          {nextAction ? 'Prochaine étape de préparation' : 'Aucune action vendeur requise pour ce statut'}
+                          {nextAction
+                            ? 'Prochaine étape de préparation'
+                            : sub.sellerPayoutStatus === 'COMPLETED'
+                              ? `Règlement confirmé${formatOrderDate(sub.sellerConfirmedAt) ? ` le ${formatOrderDate(sub.sellerConfirmedAt)}` : ''}`
+                              : sub.sellerPayoutStatus === 'APPROVED' && sub.platformDepositReceivedAt
+                                ? 'AgroConnect a reçu les fonds. Confirmez uniquement après avoir reçu votre règlement hors application.'
+                                : sub.status === 'DELIVERED'
+                                  ? 'En attente de la remise du livreur à AgroConnect.'
+                                  : 'Aucune action vendeur requise pour ce statut'}
                         </p>
-                        {nextAction && (
+                        {nextAction ? (
                           <Button
                             variant="primary"
                             size="sm"
@@ -965,7 +1180,17 @@ export default function SellerDashboardPage() {
                           >
                             {nextAction.label}
                           </Button>
-                        )}
+                        ) : sub.sellerPayoutStatus === 'APPROVED' && sub.platformDepositReceivedAt ? (
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            onClick={() => void handleConfirmPayout(sub.id)}
+                            isLoading={confirmingPayoutId === sub.id}
+                            disabled={confirmingPayoutId !== null && confirmingPayoutId !== sub.id}
+                          >
+                            Confirmer le règlement reçu
+                          </Button>
+                        ) : null}
                       </footer>
                     </article>
                   );
@@ -1033,9 +1258,20 @@ export default function SellerDashboardPage() {
                 />
                 <p className="mt-1 text-[11px] text-stone-500">JPEG, PNG ou WebP, 5 Mo maximum.</p>
               </div>
-              <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
-                La mise en avant des offres nécessitera un abonnement. Le paiement sera disponible prochainement.
-              </p>
+              <label className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-xs text-amber-950">
+                <input
+                  type="checkbox"
+                  checked={newIsFeatured}
+                  onChange={(event) => setNewIsFeatured(event.target.checked)}
+                  className="mt-0.5 h-4 w-4 accent-amber-700"
+                />
+                <span>
+                  <span className="block font-bold">Mettre cette offre à la une</span>
+                  <span className="mt-1 block leading-relaxed">
+                    Option gratuite pour le moment : aucun paiement en ligne n’est demandé.
+                  </span>
+                </span>
+              </label>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Input
