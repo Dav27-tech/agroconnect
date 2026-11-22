@@ -29,11 +29,15 @@ function LoginForm() {
     try {
       const loggedInUser = await login(email, password);
       setSuccess(true);
-      const destination = loggedInUser.roles.includes('ADMIN')
-        ? '/admin'
-        : loggedInUser.roles.includes('SELLER')
-          ? '/vendeur/dashboard'
-          : redirectPath || '/catalogue';
+      const destination = loggedInUser.roles.includes('SUPER_ADMIN')
+        ? '/super-admin'
+        : loggedInUser.roles.includes('ADMIN')
+          ? '/admin'
+          : loggedInUser.roles.includes('DELIVERY_PERSON')
+          ? '/livreur'
+          : loggedInUser.roles.includes('SELLER')
+            ? '/vendeur/dashboard'
+            : redirectPath || '/catalogue';
       setTimeout(() => {
         router.push(destination);
       }, 1200);
