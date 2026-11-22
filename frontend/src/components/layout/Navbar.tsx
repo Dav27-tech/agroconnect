@@ -8,10 +8,11 @@ import { useCart } from '../../context/CartContext';
 import { IconUser, IconShoppingBag, IconPlant, IconShieldCheck } from '../ui/Icons';
 
 export function Navbar() {
-  const { user, isAuthenticated, isSeller, isAdmin, isLoading: isAuthLoading, logout } = useAuth();
+  const { user, isAuthenticated, isBuyer, isSeller, isCourier, isAdmin, isSuperAdmin, isLoading: isAuthLoading, logout } = useAuth();
   const { totalItemsCount } = useCart();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+  const canShop = !isAuthLoading && !isAdmin && !isCourier && (!isAuthenticated || isBuyer);
 
   return (
     <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-stone-200">
@@ -63,6 +64,15 @@ export function Navbar() {
                 <span>Tableau Vendeur</span>
               </Link>
             )}
+            {isCourier && (
+              <Link
+                href="/livreur"
+                className="inline-flex items-center gap-2 rounded-xl border border-sky-800 bg-sky-800 px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-sky-900"
+              >
+                <IconShoppingBag className="h-4 w-4" aria-hidden="true" />
+                <span>Espace Livreur</span>
+              </Link>
+            )}
             {isAdmin && (
               <Link
                 href="/admin"
@@ -72,12 +82,21 @@ export function Navbar() {
                 <span>Tableau Admin</span>
               </Link>
             )}
+            {isSuperAdmin && (
+              <Link
+                href="/super-admin"
+                className="inline-flex items-center gap-2 rounded-xl border border-amber-700 bg-amber-700 px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-amber-800"
+              >
+                <IconShieldCheck className="h-4 w-4" aria-hidden="true" />
+                <span>Super admin</span>
+              </Link>
+            )}
           </nav>
 
           {/* Right Tools (Currency, Cart & Auth) */}
-          <div className="hidden sm:flex items-center gap-3">
+          <div className="hidden lg:flex items-center gap-3">
             {/* Shopping Cart Icon with Badge */}
-            {!isAdmin && !isAuthLoading && (
+            {canShop && (
               <Link
                 href="/panier"
                 className="relative p-2.5 rounded-xl border border-stone-200 text-stone-700 hover:text-emerald-800 hover:bg-stone-50 transition"
@@ -123,7 +142,17 @@ export function Navbar() {
                             key={r}
                             className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 uppercase"
                           >
-                            {r === 'SELLER' ? 'Vendeur' : r === 'BUYER' ? 'Acheteur' : r}
+                            {r === 'SELLER'
+                              ? 'Vendeur'
+                              : r === 'BUYER'
+                                ? 'Acheteur'
+                                : r === 'DELIVERY_PERSON'
+                                  ? 'Livreur'
+                                  : r === 'SUPER_ADMIN'
+                                    ? 'Super admin'
+                                    : r === 'ADMIN'
+                                      ? 'Administrateur'
+                                      : r}
                           </span>
                         ))}
                       </div>
@@ -150,8 +179,27 @@ export function Navbar() {
                         Tableau Admin
                       </Link>
                     )}
+                    {isSuperAdmin && (
+                      <Link
+                        href="/super-admin"
+                        onClick={() => setUserDropdownOpen(false)}
+                        className="mx-2 my-1 flex items-center gap-2 rounded-lg bg-amber-700 px-3 py-2.5 text-xs font-bold text-white transition hover:bg-amber-800"
+                      >
+                        <IconShieldCheck className="h-4 w-4" aria-hidden="true" />
+                        Espace Super Admin
+                      </Link>
+                    )}
+                    {isCourier && (
+                      <Link
+                        href="/livreur"
+                        onClick={() => setUserDropdownOpen(false)}
+                        className="mx-2 my-1 flex items-center gap-2 rounded-lg bg-sky-800 px-3 py-2.5 text-xs font-bold text-white transition hover:bg-sky-900"
+                      >
+                        Espace Livreur
+                      </Link>
+                    )}
 
-                    {!isAdmin && !isAuthLoading && (
+                    {isBuyer && !isAdmin && !isCourier && (
                       <Link
                         href="/mes-commandes"
                         onClick={() => setUserDropdownOpen(false)}
@@ -189,7 +237,7 @@ export function Navbar() {
 
           {/* Mobile Menu Button */}
           <div className="flex items-center gap-2 lg:hidden">
-            {!isAdmin && !isAuthLoading && (
+            {canShop && (
               <Link href="/panier" className="relative p-2 text-stone-700">
                 <IconShoppingBag className="w-6 h-6" />
                 {totalItemsCount > 0 && (
@@ -243,7 +291,27 @@ export function Navbar() {
                 <span>Tableau Admin</span>
               </Link>
             )}
-            {!isAdmin && !isAuthLoading && (
+            {isSuperAdmin && (
+              <Link
+                href="/super-admin"
+                className="flex items-center gap-3 rounded-xl border border-amber-700 bg-amber-700 px-4 py-3 text-sm font-bold text-white shadow-sm"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <IconShieldCheck className="h-5 w-5" aria-hidden="true" />
+                <span>Espace Super Admin</span>
+              </Link>
+            )}
+            {isCourier && (
+              <Link
+                href="/livreur"
+                className="flex items-center gap-3 rounded-xl border border-sky-800 bg-sky-800 px-4 py-3 text-sm font-bold text-white shadow-sm"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <IconShoppingBag className="h-5 w-5" aria-hidden="true" />
+                <span>Espace Livreur</span>
+              </Link>
+            )}
+            {canShop && (
               <Link
                 href="/panier"
                 className="text-sm font-semibold py-2 text-stone-700 flex items-center justify-between"
@@ -257,7 +325,7 @@ export function Navbar() {
                 )}
               </Link>
             )}
-            {isAuthenticated && !isAdmin && (
+            {isAuthenticated && isBuyer && !isAdmin && !isCourier && (
               <Link
                 href="/mes-commandes"
                 className="text-sm font-semibold py-2 text-stone-700"
