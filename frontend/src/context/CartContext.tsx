@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, startTransition, ReactNode } from 'react';
 import { SellerOfferItem, SaleType, CartCalculationResult } from '../types';
 import { api } from '../services/api';
+import { useRealtime } from './RealtimeContext';
 
 export interface CartItemState {
   offerId: string;
@@ -27,6 +28,7 @@ interface CartContextType {
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export function CartProvider({ children }: { children: ReactNode }) {
+  const socket = useRealtime();
   const [items, setItems] = useState<CartItemState[]>([]);
   const [isCartHydrated, setIsCartHydrated] = useState(false);
   const [calculation, setCalculation] = useState<CartCalculationResult | null>(null);
@@ -56,6 +58,29 @@ export function CartProvider({ children }: { children: ReactNode }) {
       console.warn('Impossible de sauvegarder le panier de la session :', e);
     }
   }, [items, isCartHydrated]);
+
+  useEffect(() => {
+    if (!socket) return;
+    const handleInventoryUpdate = (event: { offers: Array<{ offerId: string; stockQuantity: number; isAvailable: boolean }> }) => {
+      setItems((current) => current.map((item) => {
+        const update = event.offers.find((offer) => offer.offerId === item.offerId);
+        return update
+          ? {
+            ...item,
+            offer: {
+              ...item.offer,
+              stockQuantity: update.stockQuantity,
+              isAvailable: update.isAvailable,
+            },
+          }
+          : item;
+      }));
+    };
+    socket.on('inventory.updated', handleInventoryUpdate);
+    return () => {
+      socket.off('inventory.updated', handleInventoryUpdate);
+    };
+  }, [socket]);
 
   // Recalculer le panier via le backend (règle : ne pas faire de calcul financier côté client)
   const refreshCalculation = useCallback(async () => {
