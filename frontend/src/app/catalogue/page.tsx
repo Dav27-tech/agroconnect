@@ -10,6 +10,7 @@ import { IconSearch } from '../../components/ui/Icons';
 import { DRC_PROVINCES } from '../../constants/drc';
 import { SellerOfferItem, Category } from '../../types';
 import { api } from '../../services/api';
+import { useRealtime } from '../../context/RealtimeContext';
 
 function normalizeSearchText(value: string) {
   return value
@@ -20,6 +21,7 @@ function normalizeSearchText(value: string) {
 }
 
 function CatalogueContent() {
+  const socket = useRealtime();
   const searchParams = useSearchParams();
   const categorySlug = searchParams.get('category');
   const initialSearchQuery = searchParams.get('search') || searchParams.get('q') || '';
@@ -67,6 +69,19 @@ function CatalogueContent() {
     }
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (!socket) return;
+    const handleInventoryUpdate = () => {
+      void api.offers.list()
+        .then(setOffers)
+        .catch((error) => console.error('Erreur de mise à jour des offres du catalogue :', error));
+    };
+    socket.on('inventory.updated', handleInventoryUpdate);
+    return () => {
+      socket.off('inventory.updated', handleInventoryUpdate);
+    };
+  }, [socket]);
 
   // Filtrage combiné
   const filteredOffers = useMemo(() => {
