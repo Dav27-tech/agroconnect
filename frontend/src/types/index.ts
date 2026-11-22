@@ -1,6 +1,6 @@
 export type SupportedCurrency = 'CDF';
 
-export type UserRole = 'BUYER' | 'SELLER' | 'DELIVERY_PERSON' | 'ADMIN';
+export type UserRole = 'BUYER' | 'SELLER' | 'DELIVERY_PERSON' | 'ADMIN' | 'SUPER_ADMIN';
 
 export type SellerType = 'FARMER' | 'RESELLER' | 'SUPPLIER';
 
@@ -42,6 +42,15 @@ export interface User {
   sellerId?: string;
   preferredLang?: string;
   deliveryProfile?: CourierProfile | null;
+}
+
+export interface AdminAccount {
+  id: string;
+  fullName: string;
+  email: string | null;
+  phoneNumber: string;
+  isActive: boolean;
+  createdAt: string;
 }
 
 export type DeliveryStatus = 'PENDING' | 'ASSIGNED' | 'PICKED_UP' | 'IN_TRANSIT' | 'ARRIVED' | 'DELIVERED' | 'FAILED' | 'CANCELLED';
