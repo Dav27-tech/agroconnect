@@ -1,7 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { PAYMENT_METHODS } from '../../constants/drc';
 
 export function Footer() {
   return (
@@ -48,19 +47,20 @@ export function Footer() {
             </ul>
           </div>
 
-          {/* Paiements Col */}
+          {/* Livraison et règlement */}
           <div>
-            <h4 className="text-sm font-bold text-white uppercase tracking-wider mb-4">Paiements RDC</h4>
+            <h4 className="text-sm font-bold text-white uppercase tracking-wider mb-4">Règlement à la livraison</h4>
             <div className="flex flex-wrap gap-1.5 mb-5">
-              {PAYMENT_METHODS.map((pm) => (
+              {['Espèces', 'Mobile Money direct'].map((method) => (
                 <span
-                  key={pm.id}
+                  key={method}
                   className="text-xs bg-stone-800 text-stone-300 px-2.5 py-1 rounded border border-stone-700 font-medium"
                 >
-                  {pm.name}
+                  {method}
                 </span>
               ))}
             </div>
+            <p className="text-xs leading-relaxed text-stone-400">Le client règle le livreur en CDF. AgroConnect ne traite aucun paiement en ligne.</p>
           </div>
         </div>
 
