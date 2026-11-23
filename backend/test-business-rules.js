@@ -145,6 +145,14 @@ async function runBusinessRuleTests() {
     role: 'ADMIN',
   });
   assert(privilegeEscalationRes.status === 400, 'L’inscription publique ne doit pas permettre le rôle ADMIN');
+  const superAdminSignupRes = await request('POST', '/api/v1/auth/register', {
+    phoneNumber: '+243819998874',
+    fullName: 'Inscription super admin refusée',
+    password: 'Password123!',
+    email: `superadmin-attempt-${Date.now()}@example.test`,
+    role: 'SUPER_ADMIN',
+  });
+  assert(superAdminSignupRes.status === 400, 'L’inscription publique ne doit pas permettre le rôle SUPER_ADMIN');
 
   const weakPasswordRes = await request('POST', '/api/v1/auth/register', {
     phoneNumber: '+243819998875',
@@ -276,6 +284,18 @@ async function runBusinessRuleTests() {
   assert(!('exchangeRateSnapshot' in orderRes.body.data), 'Aucun taux de change ne doit être exposé dans la commande');
   assert(!('totalAmountUsd' in orderRes.body.data), 'La commande publique ne doit exposer que les montants CDF');
   assert(!('subtotalUsd' in parentOrder.subOrders[0]), 'Les sous-commandes publiques ne doivent exposer que les montants CDF');
+  const orderDetailsRes = await request(
+    'GET',
+    `/api/v1/orders/${parentOrder.id}`,
+    null,
+    { authorization: `Bearer ${buyerToken}` }
+  );
+  assert(
+    orderDetailsRes.status === 200 &&
+    orderDetailsRes.body.data.recipientName === 'Mbuyi Kalala' &&
+    orderDetailsRes.body.data.subOrders.every((subOrder) => subOrder.items?.length > 0),
+    'Le détail de commande doit inclure le destinataire et les articles de chaque vendeur'
+  );
 
   const stockAfterFirstOrder = AgroStore.offers.get('off-manioc-coopak').stockQuantity;
   const replayOrderRes = await request('POST', '/api/v1/orders', {
@@ -330,25 +350,13 @@ async function runBusinessRuleTests() {
   );
 
   // -------------------------------------------------------------------------
-  // TEST 5B : Paiement mock non confirmé et tentative idempotente
+  // TEST 5B : Les routes de paiement en ligne ont été retirées
   // -------------------------------------------------------------------------
-  const paymentRequest = {
-    parentOrderId: parentOrder.id,
-    provider: 'M_PESA',
-    customerPhoneNumber: '+243810001123',
-  };
   const paymentHeaders = { 'content-type': 'application/json', authorization: `Bearer ${buyerToken}` };
-  const firstPaymentRes = await request('POST', '/api/v1/payments/checkout', paymentRequest, paymentHeaders);
-  assert(firstPaymentRes.status === 200, 'Le simulateur doit accepter la demande de paiement');
-  assert(firstPaymentRes.body.data.status === 'PENDING', 'Le simulateur ne doit jamais confirmer un paiement');
-  assert(parentOrder.status === 'PENDING', 'Une réponse simulée ne doit pas confirmer la commande');
-
-  const retryPaymentRes = await request('POST', '/api/v1/payments/checkout', paymentRequest, paymentHeaders);
-  assert(
-    retryPaymentRes.body.data.transactionId === firstPaymentRes.body.data.transactionId,
-    'Une nouvelle tentative doit réutiliser la transaction existante pour la commande'
-  );
-  console.log('✅ TEST 5B RÉUSSI : Le paiement simulé reste en attente et les tentatives sont idempotentes.');
+  const removedPaymentRes = await request('POST', '/api/v1/payments/checkout', {}, paymentHeaders);
+  assert(removedPaymentRes.status === 404, 'Les anciennes routes de paiement en ligne ne doivent plus être exposées');
+  assert(parentOrder.status === 'PENDING', 'Une requête vers une ancienne route ne doit pas modifier la commande');
+  console.log('✅ TEST 5B RÉUSSI : Les routes de paiement en ligne ont été retirées.');
 
   // -------------------------------------------------------------------------
   // TEST 6 : Isolation des sous-commandes vendeur
@@ -488,34 +496,6 @@ async function runBusinessRuleTests() {
     `UPDATE "seller_profiles" SET "verificationStatus" = 'VERIFIED'::"VerificationStatus" WHERE "id"::text = $1`,
     [sellerAccount.sellerId]
   );
-  const testSubscriptionReference = `TEST-SUB-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
-  await dbManager.query(
-    `WITH payment AS (
-       INSERT INTO "platform_payments"
-         ("purpose", "reference", "idempotencyKey", "sellerId", "amountCdf", "currency",
-          "payerPhone", "provider", "status", "verifiedAt")
-       VALUES ('SUBSCRIPTION', $2, $3, $1, 500, 'CDF', '+243820000001', 'M_PESA', 'SUCCEEDED', NOW())
-       RETURNING "id"
-     )
-     INSERT INTO "seller_subscriptions" ("sellerId", "platformPaymentId", "amountCdf", "startsAt", "expiresAt")
-     SELECT $1, "id", 500, NOW(), NOW() + INTERVAL '1 month' FROM payment`,
-    [
-      sellerAccount.sellerId,
-      testSubscriptionReference,
-      `${testSubscriptionReference}-idempotency`,
-    ]
-  );
-  const featuredCreateRes = await request(
-    'POST',
-    '/api/v1/offers',
-    { isFeatured: true },
-    { authorization: `Bearer ${sellerAccount.token}`, 'content-type': 'application/json' }
-  );
-  assert(
-    featuredCreateRes.status === 403 && featuredCreateRes.body.error.code === 'PROMOTION_PAYMENT_REQUIRED',
-    'La création d’une offre ne doit pas permettre de contourner l’abonnement de mise en avant'
-  );
-
   const offerSuffix = Date.now();
   const testProductName = `Produit de test ${offerSuffix}`;
   const publishRes = await request(
@@ -531,11 +511,17 @@ async function runBusinessRuleTests() {
       originProvince: 'Kwilu',
       originCity: 'Kikwit',
       imageUrl: `http://localhost:5000/uploads/01234567-89ab-cdef-0123-456789abcdef.jpg`,
+      isFeatured: true,
     },
     { authorization: `Bearer ${sellerAccount.token}`, 'content-type': 'application/json' }
   );
   assert(publishRes.status === 201, `La publication doit retourner 201 (reçu: ${publishRes.status}, ${JSON.stringify(publishRes.body)})`);
   const publishedOfferId = publishRes.body.data.id;
+  const featuredOnCreateRes = await request('GET', '/api/v1/offers?featured=true');
+  assert(
+    featuredOnCreateRes.body.data.some((offer) => offer.id === publishedOfferId && offer.isFeatured),
+    'Une offre peut être mise en avant dès sa publication, sans paiement'
+  );
   const ownCartRes = await request(
     'POST',
     '/api/v1/cart/calculate',
@@ -558,12 +544,12 @@ async function runBusinessRuleTests() {
   const featuredUpdateRes = await request(
     'PUT',
     `/api/v1/offers/${publishedOfferId}`,
-    { isFeatured: true },
+    { isFeatured: false },
     { authorization: `Bearer ${sellerAccount.token}`, 'content-type': 'application/json' }
   );
   assert(
-    featuredUpdateRes.status === 403 && featuredUpdateRes.body.error.code === 'PROMOTION_PAYMENT_REQUIRED',
-    'Un vendeur ne doit pas pouvoir activer la mise en avant sans abonnement'
+    featuredUpdateRes.status === 200 && featuredUpdateRes.body.data.isFeatured === false,
+    'Un vendeur doit pouvoir retirer la mise en avant de sa propre offre'
   );
   const listedPublishedOffer = await request(
     'GET',
@@ -571,35 +557,23 @@ async function runBusinessRuleTests() {
   );
   assert(
     listedPublishedOffer.body.data.some((offer) => offer.id === publishedOfferId && !offer.isFeatured),
-    'L’offre publiée doit apparaître dans le catalogue sans mise en avant non autorisée'
+    'L’offre retirée de la mise en avant doit rester visible au catalogue'
   );
-  await dbManager.query(
-    `UPDATE "seller_subscriptions"
-     SET "startsAt" = NOW() - INTERVAL '2 days',
-         "expiresAt" = NOW() - INTERVAL '1 day'
-     WHERE "sellerId" = $1`,
-    [sellerAccount.sellerId]
-  );
-  const expiredSubscriptionPublishRes = await request(
-    'POST',
-    '/api/v1/offers',
-    {
-      productName: `Nouvelle offre bloquée ${Date.now()}`,
-      categoryName: 'Tubercules & Racines',
-      stockQuantity: 3,
-      unit: 'KG',
-      retailPriceCdf: 1200,
-      originProvince: 'Kwilu',
-      imageUrl: 'http://localhost:5000/uploads/01234567-89ab-cdef-0123-456789abcdef.jpg',
-    },
+  const featuredAgainRes = await request(
+    'PUT',
+    `/api/v1/offers/${publishedOfferId}`,
+    { isFeatured: true },
     { authorization: `Bearer ${sellerAccount.token}`, 'content-type': 'application/json' }
   );
   assert(
-    expiredSubscriptionPublishRes.status === 403 && expiredSubscriptionPublishRes.body.error.code === 'SUBSCRIPTION_REQUIRED',
-    'Un vendeur dont l’abonnement a expiré ne doit pas publier de nouvelle offre'
+    featuredAgainRes.status === 200 && featuredAgainRes.body.data.isFeatured === true,
+    'Un vendeur doit pouvoir remettre sa propre offre en avant sans passer par un paiement'
   );
-  const existingOfferAfterExpiry = await request('GET', `/api/v1/offers/${publishedOfferId}`);
-  assert(existingOfferAfterExpiry.status === 200, 'Les offres déjà publiées doivent rester visibles après expiration');
+  const featuredListRes = await request('GET', '/api/v1/offers?featured=true');
+  assert(
+    featuredListRes.body.data.some((offer) => offer.id === publishedOfferId && offer.isFeatured),
+    'Une offre mise en avant doit apparaître dans la liste des offres vedettes'
+  );
   const createdProduct = await dbManager.query(
     'SELECT "id", "categoryId" FROM "products" WHERE "name" = $1 LIMIT 1',
     [testProductName]
@@ -671,6 +645,101 @@ async function runBusinessRuleTests() {
     `UPDATE "users" SET "roles" = ARRAY['ADMIN']::"UserRole"[] WHERE "id" = $1`,
     [adminUser.id]
   );
+  const regularAdminListRes = await request(
+    'GET',
+    '/api/v1/admin/admins',
+    null,
+    { authorization: `Bearer ${adminToken}` }
+  );
+  assert(regularAdminListRes.status === 403, 'Un administrateur normal ne peut pas gérer les comptes administrateurs');
+  const forbiddenRoleUpdate = await request(
+    'PATCH',
+    `/api/v1/admin/users/${registerRes.body.data.user.id}/roles`,
+    { roles: ['ADMIN'] },
+    { authorization: `Bearer ${adminToken}`, 'content-type': 'application/json' }
+  );
+  assert(forbiddenRoleUpdate.status === 403, 'Un administrateur normal ne peut pas attribuer le rôle ADMIN');
+
+  const superAdminRegistration = await request('POST', '/api/v1/auth/register', {
+    phoneNumber: `+24382${String(Date.now()).slice(-7)}`,
+    fullName: 'Super administratrice de test',
+    password: 'Password123!',
+    email: `superadmin-${Date.now()}@example.test`,
+    role: 'BUYER',
+  });
+  assert(superAdminRegistration.status === 201, 'Le compte super admin de test doit être créé comme compte standard');
+  const superAdminUser = superAdminRegistration.body.data.user;
+  createdTestUserIds.push(superAdminUser.id);
+  await dbManager.query(
+    `UPDATE "users" SET "roles" = ARRAY['SUPER_ADMIN', 'ADMIN']::"UserRole"[] WHERE "id" = $1`,
+    [superAdminUser.id]
+  );
+  const superAdminToken = superAdminRegistration.body.data.token;
+  const superAdminStats = await request(
+    'GET',
+    '/api/v1/admin/stats',
+    null,
+    { authorization: `Bearer ${superAdminToken}` }
+  );
+  assert(superAdminStats.status === 200, 'Le super admin doit également accéder aux fonctionnalités administrateur');
+  const selfDisableSuperAdmin = await request(
+    'PATCH',
+    `/api/v1/admin/admins/${superAdminUser.id}/status`,
+    { isActive: false },
+    { authorization: `Bearer ${superAdminToken}`, 'content-type': 'application/json' }
+  );
+  assert(selfDisableSuperAdmin.status === 404, 'Le super admin ne doit pas pouvoir désactiver son propre compte depuis la gestion des admins');
+  const createManagedAdmin = await request(
+    'POST',
+    '/api/v1/admin/admins',
+    {
+      fullName: 'Administrateur géré de test',
+      email: `managed-admin-${Date.now()}@example.test`,
+      phoneNumber: `+24383${String(Date.now()).slice(-7)}`,
+      password: 'ManagedAdmin123!',
+    },
+    { authorization: `Bearer ${superAdminToken}`, 'content-type': 'application/json' }
+  );
+  assert(createManagedAdmin.status === 201, 'Le super admin doit pouvoir créer un compte administrateur');
+  createdTestUserIds.push(createManagedAdmin.body.data.id);
+  assert(createManagedAdmin.body.data.isActive, 'Un nouvel administrateur doit être actif par défaut');
+  const managedAdmins = await request(
+    'GET',
+    '/api/v1/admin/admins',
+    null,
+    { authorization: `Bearer ${superAdminToken}` }
+  );
+  assert(
+    managedAdmins.status === 200 && managedAdmins.body.data.some((admin) => admin.id === createManagedAdmin.body.data.id),
+    'Le super admin doit pouvoir lister les admins sans y voir son propre compte'
+  );
+  const disableManagedAdmin = await request(
+    'PATCH',
+    `/api/v1/admin/admins/${createManagedAdmin.body.data.id}/status`,
+    { isActive: false },
+    { authorization: `Bearer ${superAdminToken}`, 'content-type': 'application/json' }
+  );
+  assert(
+    disableManagedAdmin.status === 200 && disableManagedAdmin.body.data.isActive === false,
+    'Le super admin doit pouvoir désactiver un administrateur'
+  );
+  const disabledAdminLogin = await request(
+    'POST',
+    '/api/v1/auth/login',
+    { email: createManagedAdmin.body.data.email, password: 'ManagedAdmin123!' },
+    { 'content-type': 'application/json' }
+  );
+  assert(disabledAdminLogin.status === 403, 'Un administrateur désactivé ne doit plus pouvoir se connecter');
+  const enableManagedAdmin = await request(
+    'PATCH',
+    `/api/v1/admin/admins/${createManagedAdmin.body.data.id}/status`,
+    { isActive: true },
+    { authorization: `Bearer ${superAdminToken}`, 'content-type': 'application/json' }
+  );
+  assert(
+    enableManagedAdmin.status === 200 && enableManagedAdmin.body.data.isActive === true,
+    'Le super admin doit pouvoir réactiver un administrateur'
+  );
 
   const disableSellerRes = await request(
     'PATCH',
@@ -709,6 +778,23 @@ async function runBusinessRuleTests() {
     { authorization: `Bearer ${adminToken}`, 'content-type': 'application/json' }
   );
   assert(reactivateSellerRes.status === 200, 'L’administration doit pouvoir réactiver le vendeur');
+  const initialCommissionRes = await request(
+    'GET',
+    '/api/v1/admin/commission-settings',
+    null,
+    { authorization: `Bearer ${adminToken}` }
+  );
+  assert(
+    initialCommissionRes.status === 200 && initialCommissionRes.body.data.commissionRatePercent === 10,
+    'Le taux de commission initial doit être de 10 %'
+  );
+  const updateCommissionRes = await request(
+    'PATCH',
+    '/api/v1/admin/commission-settings',
+    { commissionRatePercent: 12.5 },
+    { authorization: `Bearer ${adminToken}`, 'content-type': 'application/json' }
+  );
+  assert(updateCommissionRes.status === 200, 'L’administration doit pouvoir configurer la commission');
   const persistedOrderRes = await request(
     'POST',
     '/api/v1/orders',
@@ -732,11 +818,164 @@ async function runBusinessRuleTests() {
     `Une offre PostgreSQL doit créer une commande persistée (reçu: ${JSON.stringify(persistedOrderRes.body)})`
   );
   createdTestOrderIds.push(persistedOrderRes.body.data.id);
+  const persistedSubOrder = persistedOrderRes.body.data.subOrders[0];
+  assert(persistedSubOrder.commissionRate === 12.5, 'Le taux configuré doit être appliqué aux nouvelles sous-commandes');
+  assert(
+    Math.abs(persistedSubOrder.commissionAmountCdf - persistedSubOrder.subtotalCdf * 0.125) < 0.01,
+    'La commission CDF doit être calculée au taux admin configuré'
+  );
+  assert(
+    Math.abs(persistedSubOrder.payoutAmountCdf - (persistedSubOrder.subtotalCdf - persistedSubOrder.commissionAmountCdf)) < 0.01,
+    'Le montant net vendeur doit être le brut diminué de la commission'
+  );
   const persistedOrderRow = await dbManager.query(
     'SELECT "id" FROM "parent_orders" WHERE "id" = $1 AND "buyerId" = $2',
     [persistedOrderRes.body.data.id, registerRes.body.data.user.id]
   );
   assert(persistedOrderRow.rows[0], 'La commande créée doit être durable dans PostgreSQL');
+
+  const courierSuffix = `${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+  const courierPassword = 'CourierTest123!';
+  const createCourierRes = await request(
+    'POST',
+    '/api/v1/admin/couriers',
+    {
+      fullName: 'Livreur de test AgroConnect',
+      email: `courier-${courierSuffix}@example.test`,
+      phoneNumber: `+24382${String(Date.now()).slice(-7)}`,
+      password: courierPassword,
+      operatingArea: 'Kinshasa - Gombe',
+      vehicleType: 'Moto',
+    },
+    { authorization: `Bearer ${adminToken}`, 'content-type': 'application/json' }
+  );
+  assert(
+    createCourierRes.status === 201,
+    `L’administration doit créer un livreur (reçu: ${JSON.stringify(createCourierRes.body)})`
+  );
+  createdTestUserIds.push(createCourierRes.body.data.userId);
+  const courierLoginRes = await request(
+    'POST',
+    '/api/v1/auth/login',
+    { email: `courier-${courierSuffix}@example.test`, password: courierPassword },
+    { 'content-type': 'application/json' }
+  );
+  assert(
+    courierLoginRes.status === 200 && courierLoginRes.body.data.user.roles.includes('DELIVERY_PERSON'),
+    'Le livreur créé doit se connecter avec son rôle dédié'
+  );
+  const courierToken = courierLoginRes.body.data.token;
+
+  for (const status of ['CONFIRMED', 'PREPARING', 'READY_FOR_PICKUP']) {
+    const sellerStatusRes = await request(
+      'PATCH',
+      `/api/v1/orders/suborder/${persistedSubOrder.id}/status`,
+      { status },
+      { authorization: `Bearer ${sellerAccount.token}`, 'content-type': 'application/json' }
+    );
+    assert(sellerStatusRes.status === 200, `Le vendeur doit pouvoir passer la commande à ${status}`);
+  }
+  const deliveryRow = await dbManager.query(
+    'SELECT "id" FROM "deliveries" WHERE "subOrderId" = $1 LIMIT 1',
+    [persistedSubOrder.id]
+  );
+  const deliveryId = deliveryRow.rows[0]?.id;
+  assert(deliveryId, 'Chaque sous-commande doit avoir une livraison persistée');
+  const assignmentRes = await request(
+    'POST',
+    `/api/v1/deliveries/${deliveryId}/assign`,
+    { personnelId: createCourierRes.body.data.id },
+    { authorization: `Bearer ${adminToken}`, 'content-type': 'application/json' }
+  );
+  assert(assignmentRes.status === 200, 'L’administration doit pouvoir affecter le livreur');
+  const adminOperationsRes = await request(
+    'GET',
+    '/api/v1/deliveries/operations',
+    null,
+    { authorization: `Bearer ${adminToken}` }
+  );
+  assert(
+    adminOperationsRes.status === 200 &&
+    adminOperationsRes.body.data.some((delivery) => delivery.id === deliveryId && delivery.courierName === 'Livreur de test AgroConnect'),
+    'Le tableau admin doit charger les livraisons et les coordonnées du livreur assigné'
+  );
+  const courierDeliveriesRes = await request(
+    'GET',
+    '/api/v1/deliveries/mine',
+    null,
+    { authorization: `Bearer ${courierToken}` }
+  );
+  assert(
+    courierDeliveriesRes.status === 200 && courierDeliveriesRes.body.data.some((delivery) => delivery.id === deliveryId),
+    'Le livreur ne doit voir que les missions qui lui sont affectées'
+  );
+  for (const status of ['PICKED_UP', 'IN_TRANSIT', 'ARRIVED']) {
+    const deliveryStatusRes = await request(
+      'PATCH',
+      `/api/v1/deliveries/${deliveryId}/status`,
+      { status },
+      { authorization: `Bearer ${courierToken}`, 'content-type': 'application/json' }
+    );
+    assert(deliveryStatusRes.status === 200, `Le livreur doit pouvoir confirmer l’étape ${status}`);
+  }
+  const mismatchedCollection = await request(
+    'POST',
+    `/api/v1/deliveries/${deliveryId}/collection`,
+    { method: 'CASH', amountCdf: persistedSubOrder.subtotalCdf + 1 },
+    { authorization: `Bearer ${courierToken}`, 'content-type': 'application/json' }
+  );
+  assert(
+    mismatchedCollection.status === 409 && mismatchedCollection.body.error.code === 'COLLECTION_AMOUNT_MISMATCH',
+    'Le livreur ne doit pas pouvoir confirmer une collecte différente du total dû'
+  );
+  const collectionRes = await request(
+    'POST',
+    `/api/v1/deliveries/${deliveryId}/collection`,
+    { method: 'CASH', amountCdf: persistedSubOrder.subtotalCdf },
+    { authorization: `Bearer ${courierToken}`, 'content-type': 'application/json' }
+  );
+  assert(collectionRes.status === 200, 'Le livreur doit confirmer la livraison et la collecte exacte');
+  const earlySellerConfirmation = await request(
+    'POST',
+    `/api/v1/orders/suborder/${persistedSubOrder.id}/confirm-payout`,
+    {},
+    { authorization: `Bearer ${sellerAccount.token}`, 'content-type': 'application/json' }
+  );
+  assert(earlySellerConfirmation.status === 409, 'Le vendeur ne peut pas confirmer avant la remise à AgroConnect');
+  const mismatchedDeposit = await request(
+    'POST',
+    `/api/v1/deliveries/${deliveryId}/platform-deposit`,
+    { amountCdf: persistedSubOrder.subtotalCdf + 1 },
+    { authorization: `Bearer ${adminToken}`, 'content-type': 'application/json' }
+  );
+  assert(
+    mismatchedDeposit.status === 409 && mismatchedDeposit.body.error.code === 'DEPOSIT_AMOUNT_MISMATCH',
+    'L’administration ne doit pas rapprocher une remise différente du montant collecté'
+  );
+  const depositRes = await request(
+    'POST',
+    `/api/v1/deliveries/${deliveryId}/platform-deposit`,
+    { amountCdf: persistedSubOrder.subtotalCdf },
+    { authorization: `Bearer ${adminToken}`, 'content-type': 'application/json' }
+  );
+  assert(depositRes.status === 200, 'L’administration doit rapprocher la remise exacte du livreur');
+  const sellerConfirmation = await request(
+    'POST',
+    `/api/v1/orders/suborder/${persistedSubOrder.id}/confirm-payout`,
+    {},
+    { authorization: `Bearer ${sellerAccount.token}`, 'content-type': 'application/json' }
+  );
+  assert(
+    sellerConfirmation.status === 200 && sellerConfirmation.body.data.payoutStatus === 'COMPLETED',
+    'Le vendeur doit pouvoir confirmer son règlement hors plateforme après rapprochement'
+  );
+  await request(
+    'PATCH',
+    '/api/v1/admin/commission-settings',
+    { commissionRatePercent: 10 },
+    { authorization: `Bearer ${adminToken}`, 'content-type': 'application/json' }
+  );
+
   const deleteOfferRes = await request(
     'DELETE',
     `/api/v1/offers/${publishedOfferId}`,
@@ -812,22 +1051,23 @@ async function runBusinessRuleTests() {
   console.log('✅ TEST 8 RÉUSSI : Aucun taux ni montant USD n’est exposé par le parcours de commande.');
 
   // -------------------------------------------------------------------------
-  // TEST 9 : Revenu vendeur sans commission de commande
+  // TEST 9 : Commission et revenu vendeur calculés au taux configuré
   // -------------------------------------------------------------------------
-  console.log('\n--- TEST 9 : Revenu vendeur sans commission de commande ---');
+  console.log('\n--- TEST 9 : Commission configurable et revenu vendeur ---');
   const subOrderFin = AgroStore.financialRecords.get(sellerSubOrder.id);
   assert(subOrderFin !== undefined, 'Un enregistrement financier vendeur doit exister');
+  assert(subOrderFin.commissionRate === 10, 'Le taux initial administrateur doit être de 10 %');
   const expectedCommission = (subOrderFin.grossAmountCdf * subOrderFin.commissionRate) / 100;
   assert(
     Math.abs(subOrderFin.commissionAmountCdf - expectedCommission) < 0.01,
-    'Aucune commission ne doit être prélevée sur une commande'
+    'La commission doit correspondre au taux enregistré'
   );
   assert(
     Math.abs(subOrderFin.sellerEarningsCdf - (subOrderFin.grossAmountCdf - subOrderFin.commissionAmountCdf)) < 0.01,
     'Le revenu net vendeur doit égaler (Brut - Commission)'
   );
   console.log(
-    `✅ TEST 9 RÉUSSI : Brut = ${subOrderFin.grossAmountCdf} CDF, Commission = ${subOrderFin.commissionAmountCdf} CDF, Net vendeur = ${subOrderFin.sellerEarningsCdf} CDF.`
+    `✅ TEST 9 RÉUSSI : Brut = ${subOrderFin.grossAmountCdf} CDF, commission = ${subOrderFin.commissionAmountCdf} CDF, net vendeur = ${subOrderFin.sellerEarningsCdf} CDF.`
   );
 
   // -------------------------------------------------------------------------
