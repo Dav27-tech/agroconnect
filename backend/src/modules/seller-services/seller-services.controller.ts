@@ -47,12 +47,12 @@ export class SellerServicesController {
 
     return sendSuccess(res, {
       standardCatalogue: standardSellerServices,
-      sellerServices: sellerSpecific,
+      sellerServices: sellerSpecific.map(({ extraFeeUsd: _extraFeeUsd, ...service }) => service),
     }, 'Services vendeurs disponibles sur AgroConnect');
   }
 
   public static async createService(req: Request, res: Response): Promise<Response> {
-    const { serviceType, title, description, extraFeeCdf = 0, extraFeeUsd = 0 } = req.body;
+    const { serviceType, title, description, extraFeeCdf = 0 } = req.body;
 
     if (!req.user) {
       return sendError(res, 'Non authentifié', 401, 'UNAUTHORIZED');
@@ -74,7 +74,7 @@ export class SellerServicesController {
       title,
       description,
       extraFeeCdf: Number(extraFeeCdf),
-      extraFeeUsd: Number(extraFeeUsd),
+      extraFeeUsd: 0,
       isActive: true,
       createdAt: new Date(),
       updatedAt: new Date(),
