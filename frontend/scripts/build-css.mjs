@@ -54,31 +54,44 @@ async function buildCss() {
  * ---------------------------------------------------- */
 :root {
   color-scheme: light;
-  --font-sans: Inter, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-sans: Aptos, "Segoe UI Variable", "Segoe UI", "Noto Sans", system-ui, sans-serif;
   
-  --ac-green-950: #123226;
-  --ac-green-900: #174735;
-  --ac-green-800: #1c6044;
-  --ac-green-700: #247650;
-  --ac-green-100: #e8f3ec;
-  --ac-green-50: #f4f8f5;
-  --ac-orange-600: #c65e24;
-  --ac-orange-100: #fff1e8;
-  --color-emerald-800: #1c6044;
-  --color-emerald-900: #174735;
-  --color-emerald-50: #f4f8f5;
-  --color-orange-600: #c65e24;
-  --color-orange-700: #a94e1f;
-  --color-stone-900: #202923;
-  --color-stone-600: #68736c;
-  --color-stone-200: #e4e9e5;
-  --ac-ink: #202923;
-  --ac-muted: #68736c;
-  --ac-line: #e4e9e5;
-  --ac-canvas: #f7f9f7;
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.4;
+  --text-sm: 0.9375rem;
+  --text-sm--line-height: 1.5;
+  --text-base: 1rem;
+  --text-base--line-height: 1.55;
+  --font-weight-bold: 650;
+  --font-weight-extrabold: 700;
+  --font-weight-black: 750;
+
+  --ac-green-950: #27372e;
+  --ac-green-900: #365342;
+  --ac-green-800: #4a6c58;
+  --ac-green-700: #5d7d69;
+  --ac-green-100: #e6ede8;
+  --ac-green-50: #f2f6f3;
+  --ac-orange-600: #a25f3e;
+  --ac-orange-100: #f6eee9;
+  --color-emerald-700: #5d7d69;
+  --color-emerald-800: #4a6c58;
+  --color-emerald-900: #365342;
+  --color-emerald-50: #f2f6f3;
+  --color-emerald-100: #e6ede8;
+  --color-emerald-200: #d4dfd7;
+  --color-orange-600: #a25f3e;
+  --color-orange-700: #875039;
+  --color-stone-900: #303a33;
+  --color-stone-600: #65716a;
+  --color-stone-200: #e3e8e4;
+  --ac-ink: #303a33;
+  --ac-muted: #65716a;
+  --ac-line: #e3e8e4;
+  --ac-canvas: #f7f8f6;
   --ac-radius-card: 1.125rem;
-  --ac-shadow-card: 0 8px 26px rgb(22 44 31 / 0.06);
-  --ac-shadow-floating: 0 18px 48px rgb(22 44 31 / 0.14);
+  --ac-shadow-card: 0 6px 20px rgb(32 52 39 / 0.045);
+  --ac-shadow-floating: 0 14px 36px rgb(32 52 39 / 0.1);
 }
 
 html {
@@ -89,7 +102,9 @@ html {
 
 body {
   color: var(--ac-ink);
-  background-color: #fff;
+  background-color: var(--ac-canvas);
+  font-size: 1rem;
+  line-height: 1.55;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
@@ -99,9 +114,31 @@ button,
 input,
 select,
 textarea {
-  font: inherit;
+  line-height: 1.2;
+  letter-spacing: 0;
 }
 
+::selection {
+  color: var(--ac-green-950);
+  background: #dfe9e2;
+}
+
+:focus-visible {
+  outline-color: rgb(74 108 88 / 0.45);
+}
+
+input,
+select,
+textarea,
+button {
+  line-height: 1.45;
+}
+
+@media (max-width: 640px) {
+  body {
+    font-size: 1rem;
+  }
+}
 button,
 a {
   -webkit-tap-highlight-color: transparent;
@@ -158,6 +195,16 @@ a {
   transform: scale(1.035);
 }
 
+.ac-home-hero-overlay {
+  background-image: linear-gradient(
+    90deg,
+    rgb(255 255 255 / 0.98) 0%,
+    rgb(255 255 255 / 0.95) 42%,
+    rgb(255 255 255 / 0.82) 68%,
+    rgb(255 255 255 / 0.18) 100%
+  );
+}
+
 .ac-form-control {
   min-height: 2.875rem;
   border: 1px solid #d6ded8;
@@ -174,6 +221,15 @@ a {
 @media (max-width: 640px) {
   .ac-container {
     width: min(100% - 1.25rem, 80rem);
+  }
+
+  .ac-home-hero-overlay {
+    background-image: linear-gradient(
+      90deg,
+      rgb(255 255 255 / 0.98) 0%,
+      rgb(255 255 255 / 0.96) 58%,
+      rgb(255 255 255 / 0.9) 100%
+    );
   }
 }
 
