@@ -1,6 +1,8 @@
 import { createApp } from './app.js';
 import { env } from './config/env.js';
 import { dbManager } from './database/client.js';
+import { createServer } from 'node:http';
+import { closeRealtime, initializeRealtime } from './common/realtime.js';
 
 async function bootstrap() {
   // Initialisation de la base de données
@@ -10,8 +12,9 @@ async function bootstrap() {
   }
 
   const app = createApp();
-
-  const server = app.listen(env.PORT, () => {
+  const server = createServer(app);
+  initializeRealtime(server);
+  server.listen(env.PORT, () => {
     console.log('====================================================');
     console.log(`🌾 Serveur AgroConnect Backend démarré avec succès !`);
     console.log(`📍 Port d'écoute : http://localhost:${env.PORT}`);
@@ -25,11 +28,10 @@ async function bootstrap() {
   // Gestion de l'arrêt gracieux
   const shutdown = async (signal: string) => {
     console.log(`\n🛑 Signal ${signal} reçu. Fermeture gracieuse du serveur...`);
-    server.close(async () => {
-      await dbManager.disconnect();
-      console.log('✅ Serveur AgroConnect arrêté proprement.');
-      process.exit(0);
-    });
+    await closeRealtime();
+    await dbManager.disconnect();
+    console.log('✅ Serveur AgroConnect arrêté proprement.');
+    process.exit(0);
   };
 
   process.on('SIGTERM', () => shutdown('SIGTERM'));
