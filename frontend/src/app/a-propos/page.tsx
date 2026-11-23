@@ -32,7 +32,7 @@ export default function AboutPage() {
       title: 'Inclusion des Petits Producteurs',
       icon: <IconUser className="w-6 h-6" aria-hidden="true" />,
       description:
-        'Paiements certifiés via Mobile Money (M-Pesa, Orange Money, Airtel Money, Afrimoney), accessibles même dans les zones rurales reculées sans compte bancaire classique.',
+        'Une commande simple et accessible : le client règle le livreur à la livraison, en espèces ou par Mobile Money direct.',
     },
   ];
 
