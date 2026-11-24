@@ -652,9 +652,6 @@ export default function AdminPage() {
                   className="mt-1.5 w-full rounded-xl border border-stone-300 bg-white px-3 py-2.5 text-sm font-medium"
                 />
               </label>
-              <p className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-xs leading-relaxed text-sky-900">
-                Le client remet le total au livreur. La commission est déduite du montant net dû au vendeur; aucun transfert n’est exécuté par l’application.
-              </p>
               <Button type="submit" variant="primary" size="sm" isLoading={isSavingCommission}>Enregistrer le taux</Button>
             </form>
           </div>
