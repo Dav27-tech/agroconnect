@@ -367,7 +367,6 @@ export default function CartPage() {
                         : '—'}
                   </dd>
                 </div>
-                <p className="text-right text-xs text-stone-500">Montants en francs congolais (CDF)</p>
               </dl>
 
               {canCheckout ? (
@@ -394,17 +393,6 @@ export default function CartPage() {
                         : 'Calcul du total…'}
                 </Button>
               )}
-
-              <div className="flex items-start gap-3 rounded-2xl bg-emerald-50 p-4 text-xs leading-relaxed text-emerald-950">
-                <IconShieldCheck
-                  className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700"
-                  aria-hidden="true"
-                />
-                <p>
-                  Le total est recalculé avant la commande. Vous pourrez vérifier les informations avant
-                  de régler le livreur à la livraison, en CDF.
-                </p>
-              </div>
             </div>
           </aside>
         </div>
