@@ -341,10 +341,6 @@ export default function CheckoutPage() {
                   La commande est payable en Francs Congolais (CDF), directement au livreur lors de la remise.
                   Chaque sous-commande est réglée séparément.
                 </p>
-                <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-xs leading-relaxed text-emerald-950">
-                  Le livreur peut recevoir des espèces ou un Mobile Money direct. Aucun PIN ni transfert n’est demandé dans AgroConnect.
-                  Demandez une confirmation de collecte au livreur.
-                </div>
               </div>
             </div>
 
