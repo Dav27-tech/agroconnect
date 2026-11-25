@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { User, UserRole } from '../types';
 import { api } from '../services/api';
 
@@ -16,6 +16,7 @@ interface AuthContextType {
   isAdmin: boolean;
   isSuperAdmin: boolean;
   login: (email: string, pass: string) => Promise<User>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   register: (data: {
     phoneNumber: string;
     fullName: string;
@@ -33,6 +34,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -74,6 +76,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoading(false);
     }
+  }, []);
+
+  const changePassword = useCallback(async (currentPassword: string, newPassword: string) => {
+    await api.auth.changePassword(currentPassword, newPassword);
+    setUser((currentUser) => currentUser ? { ...currentUser, mustChangePassword: false } : currentUser);
   }, []);
 
   const register = useCallback(async (data: {
@@ -130,6 +137,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [token, logout]);
 
+  useEffect(() => {
+    if (!isLoading && user?.mustChangePassword && pathname !== '/compte/mot-de-passe') {
+      router.replace('/compte/mot-de-passe');
+    }
+  }, [isLoading, pathname, router, user?.mustChangePassword]);
+
   const hasRole = useCallback(
     (role: UserRole): boolean => {
       if (!user) return false;
@@ -157,6 +170,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAdmin,
         isSuperAdmin,
         login,
+        changePassword,
         register,
         logout,
         hasRole,
