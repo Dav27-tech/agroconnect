@@ -42,6 +42,7 @@ export interface User {
   sellerId?: string;
   preferredLang?: string;
   deliveryProfile?: CourierProfile | null;
+  mustChangePassword?: boolean;
 }
 
 export interface AdminAccount {
