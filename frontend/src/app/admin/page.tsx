@@ -495,12 +495,6 @@ export default function AdminPage() {
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <h3 className="text-sm font-bold text-stone-900">{seller.businessName}</h3>
-                        <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${seller.isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
-                          {seller.isActive ? 'Compte actif' : 'Accès suspendu'}
-                        </span>
-                        <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${verificationBadgeClass(seller.verificationStatus)}`}>
-                          {verificationLabels[seller.verificationStatus] ?? seller.verificationStatus}
-                        </span>
                       </div>
                       <p className="mt-1 text-sm text-stone-600">{seller.fullName} · {sellerTypeLabels[seller.sellerType] ?? seller.sellerType}</p>
                       <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs text-stone-500">
