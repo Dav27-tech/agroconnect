@@ -128,6 +128,13 @@ export const api = {
     async me(): Promise<User> {
       return await request<User>('/auth/me');
     },
+
+    async changePassword(currentPassword: string, newPassword: string): Promise<{ mustChangePassword: boolean }> {
+      return await request('/auth/change-password', {
+        method: 'POST',
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+    },
   },
 
   // --------------------------------------------------------------------------
