@@ -28,6 +28,10 @@ function LoginForm() {
 
     try {
       const loggedInUser = await login(email, password);
+      if (loggedInUser.mustChangePassword) {
+        router.replace('/compte/mot-de-passe');
+        return;
+      }
       setSuccess(true);
       const destination = loggedInUser.roles.includes('SUPER_ADMIN')
         ? '/super-admin'
