@@ -805,7 +805,10 @@ export default function SellerDashboardPage() {
             </div>
 
             {offers.length ? (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-3">
+              <div
+                className="grid gap-4"
+                style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 22rem), 1fr))' }}
+              >
                 {offers.map((offer) => (
                 <article
                   key={offer.id}
