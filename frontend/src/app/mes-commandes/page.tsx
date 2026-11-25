@@ -5,9 +5,157 @@ import { PageHeader } from '../../components/layout/PageHeader';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { useAuth } from '../../context/AuthContext';
 import { formatCdfPrice } from '../../utils/format';
-import { ParentOrder } from '../../types';
+import { ParentOrder, ParentOrderStatus, SubOrderStatus } from '../../types';
 import { api } from '../../services/api';
 import { useRealtime } from '../../context/RealtimeContext';
+
+const parentOrderStatusLabels: Record<ParentOrderStatus, string> = {
+  PENDING: 'En attente',
+  CONFIRMED: 'Confirmée',
+  PROCESSING: 'En préparation',
+  PARTIALLY_DELIVERED: 'Partiellement livrée',
+  DELIVERED: 'Livrée',
+  CANCELLED: 'Annulée',
+};
+
+const parentOrderStatusClasses: Record<ParentOrderStatus, string> = {
+  PENDING: 'border-amber-200 bg-amber-50 text-amber-800',
+  CONFIRMED: 'border-sky-200 bg-sky-50 text-sky-800',
+  PROCESSING: 'border-blue-200 bg-blue-50 text-blue-800',
+  PARTIALLY_DELIVERED: 'border-orange-200 bg-orange-50 text-orange-800',
+  DELIVERED: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+  CANCELLED: 'border-red-200 bg-red-50 text-red-800',
+};
+
+const subOrderStatusLabels: Record<SubOrderStatus, string> = {
+  PENDING: 'À confirmer',
+  CONFIRMED: 'Confirmée',
+  PREPARING: 'En préparation',
+  READY_FOR_PICKUP: 'Prête à l’enlèvement',
+  IN_DELIVERY: 'En livraison',
+  DELIVERED: 'Livrée',
+  REJECTED: 'Refusée',
+  CANCELLED: 'Annulée',
+};
+
+function formatReceiptDate(value: string): string {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? 'Date indisponible'
+    : date.toLocaleString('fr-FR', { dateStyle: 'long', timeStyle: 'short' });
+}
+
+function OrderReceipt({ order, onPrint }: { order: ParentOrder; onPrint: () => void }) {
+  const deliveryAddress = [
+    order.deliveryAddress,
+    order.deliveryCommune,
+    order.deliveryCity,
+    order.deliveryProvince,
+  ].filter(Boolean).join(', ');
+  const itemCount = order.subOrders.reduce((count, sub) => count + (sub.items?.length ?? 0), 0);
+
+  return (
+    <article className="order-receipt mx-auto w-full max-w-3xl overflow-hidden rounded-2xl border border-stone-200 border-t-4 border-t-emerald-800 bg-white">
+      <header className="flex flex-col gap-4 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-800">AgroConnect RDC</p>
+          <h2 className="mt-1 text-xl font-black tracking-tight text-stone-950">Reçu de commande</h2>
+        </div>
+        <button
+          type="button"
+          onClick={onPrint}
+          className="receipt-print-hidden inline-flex min-h-10 items-center justify-center gap-2 self-start rounded-xl bg-emerald-900 px-4 py-2 text-xs font-bold text-white transition hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-offset-2 sm:self-auto"
+        >
+          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v7H6z" />
+          </svg>
+          Imprimer / enregistrer
+        </button>
+      </header>
+
+      <div className="grid gap-3 border-y border-stone-200 bg-stone-50/70 px-5 py-4 text-xs sm:grid-cols-3 sm:px-7">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-wide text-stone-500">Commande</p>
+          <p className="mt-1 break-all font-mono font-bold text-stone-900">{order.orderNumber}</p>
+        </div>
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-wide text-stone-500">Date</p>
+          <p className="mt-1 font-medium text-stone-800">{formatReceiptDate(order.createdAt)}</p>
+        </div>
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-wide text-stone-500">Statut</p>
+          <span className={`mt-1 inline-flex rounded-full border px-2.5 py-1 text-[10px] font-bold ${parentOrderStatusClasses[order.status]}`}>
+            {parentOrderStatusLabels[order.status]}
+          </span>
+        </div>
+      </div>
+
+      <div className="space-y-5 px-5 py-5 sm:px-7 sm:py-6">
+        <section className="grid gap-3 text-xs sm:grid-cols-2" aria-label="Informations de livraison">
+          <div>
+            <p className="font-bold text-stone-800">{order.recipientName || 'Destinataire non renseigné'}</p>
+            <p className="mt-1 text-stone-600">{order.recipientPhone || 'Téléphone non renseigné'}</p>
+          </div>
+          <div className="sm:text-right">
+            <p className="font-semibold text-stone-800">{deliveryAddress || 'Adresse non renseignée'}</p>
+            {order.deliveryInstructions && <p className="mt-1 text-stone-500">Note : {order.deliveryInstructions}</p>}
+          </div>
+        </section>
+
+        <section aria-label={`Articles commandés, ${itemCount} article(s)`}>
+          <div className="mb-2 flex items-center justify-between border-b border-stone-200 pb-2">
+            <h3 className="text-xs font-bold uppercase tracking-wide text-stone-600">Articles</h3>
+            <span className="text-[10px] font-semibold text-stone-500">{itemCount} article(s)</span>
+          </div>
+          <div className="divide-y divide-stone-100">
+            {order.subOrders.map((sub) => (
+              <section key={sub.id} className="py-3 first:pt-2">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs font-bold text-stone-900">{sub.sellerName}</p>
+                  <span className="rounded-full bg-stone-100 px-2 py-1 text-[10px] font-semibold text-stone-600">
+                    {subOrderStatusLabels[sub.status]}
+                  </span>
+                </div>
+                {sub.items?.map((item) => (
+                  <div key={item.id} className="flex items-start justify-between gap-4 py-1.5 text-xs">
+                    <div className="min-w-0">
+                      <p className="font-medium text-stone-800">{item.productName}</p>
+                      <p className="mt-0.5 text-[10px] text-stone-500">
+                        {item.quantity} × {formatCdfPrice(item.unitPriceCdf)}
+                        {' · '}
+                        {item.saleType === 'WHOLESALE' ? 'Gros' : 'Détail'}
+                      </p>
+                    </div>
+                    <p className="shrink-0 font-semibold tabular-nums text-stone-900">{formatCdfPrice(item.subtotalCdf)}</p>
+                  </div>
+                ))}
+              </section>
+            ))}
+          </div>
+        </section>
+
+        <section className="ml-auto w-full max-w-sm border-t border-stone-200 pt-3" aria-label="Total de la commande">
+          <div className="flex justify-between gap-4 py-1 text-xs text-stone-600">
+            <span>Articles</span>
+            <span className="font-medium tabular-nums text-stone-900">{formatCdfPrice(order.totalItemsCdf)}</span>
+          </div>
+          <div className="flex justify-between gap-4 py-1 text-xs text-stone-600">
+            <span>Livraison</span>
+            <span className="font-medium tabular-nums text-stone-900">{formatCdfPrice(order.deliveryFeeCdf)}</span>
+          </div>
+          <div className="mt-2 flex items-center justify-between gap-4 border-t border-dashed border-stone-300 pt-3">
+            <span className="text-sm font-bold text-stone-900">Total à régler au livreur</span>
+            <span className="text-lg font-black tabular-nums text-emerald-900">{formatCdfPrice(order.totalAmountCdf)}</span>
+          </div>
+        </section>
+
+        <p className="border-t border-stone-100 pt-3 text-[10px] leading-5 text-stone-500">
+          Paiement en CDF auprès du livreur à la livraison. AgroConnect n’encaisse pas de paiement en ligne; ce reçu confirme la commande, pas le paiement.
+        </p>
+      </div>
+    </article>
+  );
+}
 
 export default function MyOrdersPage() {
   const socket = useRealtime();
@@ -81,6 +229,13 @@ export default function MyOrdersPage() {
     if (!orderDetails[order.id]) void loadOrderDetails(order.id);
   };
 
+  const printReceipt = () => {
+    const cleanup = () => document.body.classList.remove('printing-order-receipt');
+    document.body.classList.add('printing-order-receipt');
+    window.addEventListener('afterprint', cleanup, { once: true });
+    window.print();
+  };
+
   if (!isAuthLoading && !isAuthenticated) {
     return (
       <EmptyState
@@ -142,8 +297,8 @@ export default function MyOrdersPage() {
                       <span>
                         <span className="flex flex-wrap items-center gap-3">
                           <span className="text-base font-black text-stone-900">{order.orderNumber}</span>
-                          <span className="rounded-full border border-emerald-200 bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-800">
-                            {order.status.replace(/_/g, ' ')}
+                          <span className={`rounded-full border px-2.5 py-0.5 text-xs font-bold ${parentOrderStatusClasses[order.status]}`}>
+                            {parentOrderStatusLabels[order.status]}
                           </span>
                         </span>
                         <span className="mt-1 block text-xs text-stone-500">
@@ -179,72 +334,7 @@ export default function MyOrdersPage() {
                           </button>
                         </div>
                       ) : details ? (
-                        <>
-                          <div className="grid gap-3 rounded-2xl bg-stone-50 p-4 sm:grid-cols-2">
-                            <div>
-                              <p className="text-[10px] font-bold uppercase tracking-wide text-stone-500">Destinataire</p>
-                              <p className="mt-1 text-sm font-semibold text-stone-900">{details.recipientName}</p>
-                              <p className="text-xs text-stone-600">{details.recipientPhone}</p>
-                            </div>
-                            <div>
-                              <p className="text-[10px] font-bold uppercase tracking-wide text-stone-500">Adresse de livraison</p>
-                              <p className="mt-1 text-sm font-semibold text-stone-900">
-                                {[details.deliveryAddress, details.deliveryCommune, details.deliveryCity, details.deliveryProvince]
-                                  .filter(Boolean)
-                                  .join(', ')}
-                              </p>
-                              {details.deliveryInstructions && (
-                                <p className="mt-1 text-xs text-stone-600">Instruction : {details.deliveryInstructions}</p>
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="space-y-3">
-                            <h3 className="text-xs font-bold uppercase tracking-wide text-stone-500">
-                              Articles commandés ({details.subOrders.reduce((count, sub) => count + (sub.items?.length ?? 0), 0)})
-                            </h3>
-                            {details.subOrders.map((sub) => (
-                              <section key={sub.id} className="rounded-2xl border border-stone-200 p-4">
-                                <div className="flex flex-col gap-2 border-b border-stone-100 pb-3 sm:flex-row sm:items-center sm:justify-between">
-                                  <div>
-                                    <p className="text-sm font-bold text-stone-900">{sub.sellerName}</p>
-                                    <p className="text-[11px] text-stone-500">{sub.subOrderNumber}</p>
-                                  </div>
-                                  <div className="flex items-center justify-between gap-3 sm:justify-end">
-                                    <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-bold text-amber-800">
-                                      {sub.status.replace(/_/g, ' ')}
-                                    </span>
-                                    <span className="text-sm font-black text-stone-900">{formatCdfPrice(sub.subtotalCdf)}</span>
-                                  </div>
-                                </div>
-
-                                <div className="mt-3 divide-y divide-stone-100">
-                                  {sub.items?.map((item) => (
-                                    <div key={item.id} className="flex flex-col gap-1 py-3 first:pt-0 sm:flex-row sm:items-center sm:justify-between">
-                                      <div>
-                                        <p className="text-sm font-semibold text-stone-800">{item.productName}</p>
-                                        <p className="text-xs text-stone-500">
-                                          {item.quantity} × {formatCdfPrice(item.unitPriceCdf)}
-                                          {' · '}
-                                          {item.saleType === 'WHOLESALE' ? 'Gros' : 'Détail'}
-                                        </p>
-                                      </div>
-                                      <p className="text-sm font-bold text-stone-900">{formatCdfPrice(item.subtotalCdf)}</p>
-                                    </div>
-                                  ))}
-                                </div>
-                                {sub.deliveryStatus && (
-                                  <p className="mt-2 border-t border-stone-100 pt-3 text-xs text-stone-500">
-                                    Livraison : <span className="font-semibold text-stone-700">{sub.deliveryStatus.replace(/_/g, ' ')}</span>
-                                    {sub.collectedAmountCdf !== null && sub.collectedAmountCdf !== undefined && (
-                                      <span> · Montant remis au livreur : {formatCdfPrice(sub.collectedAmountCdf)}</span>
-                                    )}
-                                  </p>
-                                )}
-                              </section>
-                            ))}
-                          </div>
-                        </>
+                        <OrderReceipt order={details} onPrint={printReceipt} />
                       ) : null}
                     </div>
                   )}
