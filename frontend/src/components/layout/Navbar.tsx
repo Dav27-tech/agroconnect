@@ -209,6 +209,14 @@ export function Navbar() {
                       </Link>
                     )}
 
+                    <Link
+                      href="/compte/mot-de-passe"
+                      onClick={() => setUserDropdownOpen(false)}
+                      className="block px-4 py-2 text-xs font-semibold text-stone-700 hover:bg-stone-50 transition"
+                    >
+                      Modifier le mot de passe
+                    </Link>
+
                     <button
                       type="button"
                       onClick={() => {
@@ -332,6 +340,15 @@ export function Navbar() {
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Mes Commandes
+              </Link>
+            )}
+            {isAuthenticated && (
+              <Link
+                href="/compte/mot-de-passe"
+                className="text-sm font-semibold py-2 text-stone-700"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Modifier le mot de passe
               </Link>
             )}
             <Link
