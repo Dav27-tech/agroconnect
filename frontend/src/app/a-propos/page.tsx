@@ -1,151 +1,97 @@
-'use client';
-
-import React from 'react';
-import Image from 'next/image';
 import Link from 'next/link';
 import { PageHeader } from '../../components/layout/PageHeader';
-import { Button } from '../../components/ui/Button';
-import { IconBuilding, IconLocation, IconPlant, IconShieldCheck, IconUser } from '../../components/ui/Icons';
-import { DRC_PROVINCES } from '../../constants/drc';
+import { IconPlant } from '../../components/ui/Icons';
+
+const steps = [
+  {
+    number: '01',
+    title: 'Les vendeurs publient leurs offres',
+    description: 'Les producteurs et vendeurs présentent leurs produits, leurs prix et les quantités disponibles.',
+  },
+  {
+    number: '02',
+    title: 'Les acheteurs choisissent',
+    description: 'Le catalogue permet de consulter les offres et de passer une commande selon ses besoins.',
+  },
+  {
+    number: '03',
+    title: 'La commande est remise',
+    description: 'Les modalités de livraison sont précisées pour la commande. Le règlement se fait au livreur, en CDF.',
+  },
+];
 
 export default function AboutPage() {
-  const pillars = [
-    {
-      title: 'Intermédiation Neutre & Transparente',
-      icon: <IconShieldCheck className="w-6 h-6" aria-hidden="true" />,
-      description:
-        'AgroConnect n\'achète, ne possède, ne stocke ni ne revend aucun produit agricole. Chaque vendeur reste propriétaire de son stock et fixe ses prix.',
-    },
-    {
-      title: 'Éradication des Pertes Post-Récolte',
-      icon: <IconPlant className="w-6 h-6" aria-hidden="true" />,
-      description:
-        'En connectant directement les vendeurs agricoles aux acheteurs, nous aidons les produits à rejoindre les personnes qui en ont besoin.',
-    },
-    {
-      title: 'Prix en Francs Congolais',
-      icon: <IconBuilding className="w-6 h-6" aria-hidden="true" />,
-      description:
-        'Les prix et les commandes sont affichés en Francs Congolais (CDF), pour une lecture claire des montants.',
-    },
-    {
-      title: 'Inclusion des Petits Producteurs',
-      icon: <IconUser className="w-6 h-6" aria-hidden="true" />,
-      description:
-        'Une commande simple et accessible : le client règle le livreur à la livraison, en espèces ou par Mobile Money direct.',
-    },
-  ];
-
   return (
-    <div className="bg-stone-50 min-h-screen pb-20">
+    <div className="min-h-screen bg-stone-50 pb-16">
       <PageHeader
-        title="À Propos d'AgroConnect"
-        subtitle="L'infrastructure numérique au service de la souveraineté alimentaire et de la valorisation paysanne en République Démocratique du Congo."
+        title="À propos d’AgroConnect"
+        subtitle="Une plateforme numérique pour consulter des offres agricoles et faciliter les échanges entre vendeurs et acheteurs."
         breadcrumbs={[
           { label: 'Accueil', href: '/' },
-          { label: 'À Propos' },
+          { label: 'À propos' },
         ]}
       />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 space-y-16">
-        {/* Story Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
-          <div className="lg:col-span-7 space-y-6">
-            <span className="text-xs font-bold uppercase tracking-wider text-emerald-800 bg-emerald-100/60 px-3 py-1 rounded-full border border-emerald-200">
-              Notre Mission en RDC
-            </span>
-            <h2 className="text-3xl sm:text-4xl font-black text-stone-900 tracking-tight leading-tight">
-              Bâtir un pont équitable entre la terre congolaise et les centres de consommation.
+      <main className="mx-auto max-w-6xl space-y-10 px-4 py-8 sm:px-6 lg:px-8 lg:py-12">
+        <section className="grid overflow-hidden rounded-3xl border border-stone-200 bg-white shadow-xs lg:grid-cols-[1.4fr_0.8fr]">
+          <div className="p-6 sm:p-9 lg:p-11">
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-emerald-800">
+              Le rôle de la plateforme
+            </p>
+            <h2 className="mt-3 max-w-2xl text-2xl font-black leading-tight tracking-tight text-stone-900 sm:text-3xl">
+              Mettre en relation les offres agricoles et les besoins des acheteurs.
             </h2>
-            <p className="text-sm sm:text-base text-stone-600 leading-relaxed font-normal">
-              La République Démocratique du Congo possède un potentiel agricole colossal capable de nourrir l&apos;Afrique entière. Pourtant, le cloisonnement des provinces, l&apos;absence de données fiables sur les stocks et la multiplication des intermédiaires informels ont longtemps fragilisé les paysans et renchéri le coût du panier de la ménagère à Kinshasa, Lubumbashi ou Goma.
+            <p className="mt-4 max-w-2xl text-sm leading-6 text-stone-600">
+              AgroConnect sert d’intermédiaire numérique : les vendeurs publient leurs produits et les acheteurs
+              peuvent les parcourir puis commander. Les produits, leur disponibilité et leurs prix restent sous
+              la responsabilité des vendeurs qui les proposent.
             </p>
-            <p className="text-sm sm:text-base text-stone-600 leading-relaxed font-normal">
-              <strong>AgroConnect</strong> est né pour briser ces barrières géographiques et économiques en fournissant une plateforme transactionnelle neutre, sécurisée et adaptée aux réalités congolaises.
-            </p>
-          </div>
-
-          <div className="lg:col-span-5">
-            <div className="relative h-96 w-full rounded-3xl overflow-hidden shadow-xl border-4 border-white">
-              <Image
-                src="https://images.unsplash.com/photo-1592982537447-7440770cbfc9?auto=format&fit=crop&q=80&w=800"
-                alt="Agriculteurs congolais au travail"
-                fill
-                className="object-cover"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Pillars Grid */}
-        <div className="pt-6">
-          <div className="text-center max-w-2xl mx-auto mb-12">
-            <h3 className="text-2xl font-black text-stone-900 mb-3">Nos Principes Fondateurs</h3>
-            <p className="text-xs sm:text-sm text-stone-500">
-              Chaque ligne de code et chaque processus opérationnel d&apos;AgroConnect répondent à ces quatre engagements.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {pillars.map((p) => (
-              <div key={p.title} className="bg-white p-6 rounded-2xl border border-stone-200 shadow-xs flex flex-col justify-between">
-                <div>
-                  <span className="p-3 bg-emerald-50 text-emerald-800 rounded-xl inline-flex mb-4">{p.icon}</span>
-                  <h4 className="text-base font-bold text-stone-900 mb-2">{p.title}</h4>
-                  <p className="text-xs text-stone-600 leading-relaxed">{p.description}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Coverage 26 Provinces */}
-        <div className="bg-emerald-950 text-white rounded-3xl p-8 sm:p-12 border border-emerald-900">
-          <div className="max-w-3xl mb-8">
-            <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">Présence Nationale</span>
-            <h3 className="text-3xl font-black mt-2 mb-3">Couverture des 26 Provinces de la RDC</h3>
-            <p className="text-xs sm:text-sm text-emerald-200 leading-relaxed">
-              AgroConnect connecte l&apos;ensemble des bassins fluviaux, ferroviaires et routiers de la République Démocratique du Congo.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-2 text-xs">
-            {DRC_PROVINCES.map((prov) => (
-              <span
-                key={prov}
-                className="bg-emerald-900/60 text-emerald-200 border border-emerald-800/80 px-3 py-1.5 rounded-lg font-medium"
-              >
-                <span className="inline-flex items-center gap-1">
-                  <IconLocation className="w-3.5 h-3.5" aria-hidden="true" />
-                  {prov}
-                </span>
-              </span>
-            ))}
-          </div>
-        </div>
-
-        {/* CTA Join */}
-        <div className="bg-white p-8 sm:p-12 rounded-3xl border border-stone-200 text-center max-w-3xl mx-auto">
-          <h3 className="text-2xl sm:text-3xl font-black text-stone-900 mb-4">
-            Rejoignez la Révolution Agricole Congolaise
-          </h3>
-          <p className="text-sm text-stone-600 mb-8 max-w-xl mx-auto leading-relaxed">
-            Que vous souhaitiez vendre vos produits agricoles ou acheter auprès des vendeurs locaux, AgroConnect est là pour vous.
-          </p>
-          <div className="flex flex-wrap items-center justify-center gap-4">
-            <Link href="/inscription">
-              <Button variant="accent" size="lg">
-                Créer un compte
-              </Button>
-            </Link>
-            <Link href="/catalogue">
-              <Button variant="outline" size="lg">
-                Consulter les offres
-              </Button>
+            <Link
+              href="/catalogue"
+              className="mt-6 inline-flex min-h-11 items-center justify-center rounded-xl bg-emerald-900 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-offset-2"
+            >
+              Parcourir le catalogue
             </Link>
           </div>
-        </div>
-      </div>
+
+          <div className="flex min-h-56 flex-col items-center justify-center bg-emerald-50 px-6 py-8 text-center lg:min-h-full">
+            <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white text-emerald-800 shadow-xs">
+              <IconPlant className="h-9 w-9" aria-hidden="true" />
+            </span>
+            <p className="mt-4 text-sm font-bold text-emerald-950">Une place de marché agricole</p>
+            <p className="mt-1 max-w-xs text-xs leading-5 text-emerald-900/75">
+              Des offres publiées par des vendeurs indépendants, consultables par les acheteurs.
+            </p>
+          </div>
+        </section>
+
+        <section aria-labelledby="fonctionnement-title">
+          <div className="max-w-2xl">
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-emerald-800">Fonctionnement</p>
+            <h2 id="fonctionnement-title" className="mt-2 text-xl font-black tracking-tight text-stone-900 sm:text-2xl">
+              De l’offre à la commande
+            </h2>
+          </div>
+          <ol className="mt-5 grid gap-4 md:grid-cols-3">
+            {steps.map((step) => (
+              <li key={step.number} className="rounded-2xl border border-stone-200 bg-white p-5 sm:p-6">
+                <span className="text-xs font-black tracking-wider text-emerald-800">{step.number}</span>
+                <h3 className="mt-3 text-sm font-bold text-stone-900">{step.title}</h3>
+                <p className="mt-2 text-xs leading-5 text-stone-600">{step.description}</p>
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        <section className="rounded-2xl border border-stone-200 bg-white p-5 sm:p-7" aria-labelledby="informations-title">
+          <h2 id="informations-title" className="text-base font-black text-stone-900">À savoir</h2>
+          <div className="mt-4 grid gap-4 text-xs leading-5 text-stone-600 sm:grid-cols-3">
+            <p><strong className="text-stone-900">Disponibilité :</strong> elle dépend des offres actives et des quantités indiquées par les vendeurs.</p>
+            <p><strong className="text-stone-900">Zone :</strong> la livraison dépend de l’adresse et des modalités disponibles pour chaque commande.</p>
+            <p><strong className="text-stone-900">Règlement :</strong> le paiement est effectué directement au livreur en francs congolais (CDF), pas en ligne sur la plateforme.</p>
+          </div>
+        </section>
+      </main>
     </div>
   );
 }
