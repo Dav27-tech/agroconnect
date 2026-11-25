@@ -195,9 +195,6 @@ function RegisterForm() {
                   <h2 className="mt-2 text-2xl font-black tracking-tight text-stone-950 sm:text-3xl">
                     Créez votre compte
                   </h2>
-                  <p className="mt-2 max-w-xl text-sm leading-6 text-stone-500">
-                    Quelques informations suffisent pour commencer. Votre adresse e-mail sera votre identifiant de connexion.
-                  </p>
                 </div>
 
                 <form onSubmit={handleRegister} className="space-y-6">
