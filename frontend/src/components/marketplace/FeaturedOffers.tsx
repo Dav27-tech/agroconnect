@@ -13,6 +13,7 @@ export function FeaturedOffers() {
   const [offers, setOffers] = useState<SellerOfferItem[]>([]);
   const [canScrollPrev, setCanScrollPrev] = useState(false);
   const [canScrollNext, setCanScrollNext] = useState(false);
+  const [isCarouselPaused, setIsCarouselPaused] = useState(false);
   const carouselRef = useRef<HTMLDivElement>(null);
 
   const updateScrollControls = () => {
@@ -25,8 +26,13 @@ export function FeaturedOffers() {
   const scrollOffers = (direction: -1 | 1) => {
     const carousel = carouselRef.current;
     if (!carousel) return;
+    const firstOffer = carousel.firstElementChild;
+    const offerWidth = firstOffer instanceof HTMLElement
+      ? firstOffer.getBoundingClientRect().width
+      : carousel.clientWidth * 0.8;
+    const gap = Number.parseFloat(window.getComputedStyle(carousel).columnGap) || 0;
     carousel.scrollBy({
-      left: direction * Math.max(260, carousel.clientWidth * 0.8),
+      left: direction * (offerWidth + gap),
       behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
     });
   };
@@ -75,8 +81,50 @@ export function FeaturedOffers() {
     };
   }, [offers.length]);
 
+  useEffect(() => {
+    if (
+      offers.length < 2 ||
+      isCarouselPaused ||
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    ) {
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      const carousel = carouselRef.current;
+      const firstOffer = carousel?.firstElementChild;
+      if (!carousel || !(firstOffer instanceof HTMLElement)) return;
+
+      const gap = Number.parseFloat(window.getComputedStyle(carousel).columnGap) || 0;
+      const step = firstOffer.getBoundingClientRect().width + gap;
+      const lastScrollPosition = carousel.scrollWidth - carousel.clientWidth;
+      if (lastScrollPosition <= 2) return;
+
+      if (carousel.scrollLeft >= lastScrollPosition - 2) {
+        carousel.scrollTo({ left: 0, behavior: 'smooth' });
+      } else {
+        carousel.scrollTo({
+          left: Math.min(carousel.scrollLeft + step, lastScrollPosition),
+          behavior: 'smooth',
+        });
+      }
+    }, 3000);
+
+    return () => window.clearInterval(timer);
+  }, [isCarouselPaused, offers.length]);
+
   return (
-    <section className="py-16 sm:py-20 bg-white">
+    <section
+      className="py-16 sm:py-20 bg-white"
+      onMouseEnter={() => setIsCarouselPaused(true)}
+      onMouseLeave={() => setIsCarouselPaused(false)}
+      onFocusCapture={() => setIsCarouselPaused(true)}
+      onBlurCapture={(event) => {
+        if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) {
+          setIsCarouselPaused(false);
+        }
+      }}
+    >
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-8 flex flex-col justify-between gap-4 sm:mb-10 md:flex-row md:items-end">
           <div>
@@ -88,8 +136,11 @@ export function FeaturedOffers() {
               Découvrez les produits disponibles et commandez directement auprès des vendeurs. Tous les prix sont en CDF.
             </p>
           </div>
-          {offers.length > 1 && (
+          {offers.length > 0 && (
             <div className="flex shrink-0 items-center gap-2 self-end md:self-auto">
+              <span className="mr-1 hidden text-xs font-medium text-stone-500 sm:inline">
+                Faire défiler
+              </span>
               <button
                 type="button"
                 onClick={() => scrollOffers(-1)}
@@ -120,13 +171,12 @@ export function FeaturedOffers() {
             role="region"
             aria-roledescription="carrousel"
             aria-label="Offres mises en avant"
-            className="flex snap-x snap-mandatory gap-4 overflow-x-auto overscroll-x-contain scroll-smooth pb-3 focus-visible:rounded-xl focus-visible:outline-2 focus-visible:outline-emerald-700 sm:gap-5"
+            className="featured-offers-track flex snap-x snap-mandatory gap-4 overflow-x-auto overscroll-x-contain scroll-smooth pb-3 focus-visible:rounded-xl focus-visible:outline-2 focus-visible:outline-emerald-700 sm:gap-5"
           >
             {offers.map((offer) => (
               <div
                 key={offer.id}
-                className="snap-start transition-transform duration-300 hover:-translate-y-1"
-                style={{ flex: '0 0 min(82vw, 21rem)' }}
+                className="featured-offers-slide snap-start transition-transform duration-300 hover:-translate-y-1"
               >
                 <ProductCard offer={offer} />
               </div>
