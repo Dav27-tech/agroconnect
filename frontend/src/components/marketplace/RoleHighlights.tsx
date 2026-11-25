@@ -38,7 +38,10 @@ export function RoleHighlights() {
           </p>
         </div>
 
-        <div className="mx-auto grid max-w-5xl grid-cols-1 gap-6 md:grid-cols-2">
+        <div
+          className="mx-auto grid max-w-5xl gap-6"
+          style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 20rem), 1fr))' }}
+        >
           {roles.map((role) => (
             <div
               key={role.title}
