@@ -218,6 +218,25 @@ a {
   outline: none;
 }
 
+.featured-offers-track {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.featured-offers-track::-webkit-scrollbar {
+  display: none;
+}
+
+.featured-offers-slide {
+  flex: 0 0 min(82vw, 21rem);
+}
+
+@media (min-width: 64rem) {
+  .featured-offers-slide {
+    flex-basis: calc((100% - 2.5rem) / 3);
+  }
+}
+
 @media (max-width: 640px) {
   .ac-container {
     width: min(100% - 1.25rem, 80rem);
@@ -241,6 +260,51 @@ a {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+  }
+
+  body.printing-order-receipt * {
+    visibility: hidden !important;
+  }
+
+  body.printing-order-receipt .order-receipt,
+  body.printing-order-receipt .order-receipt * {
+    visibility: visible !important;
+  }
+
+  body.printing-order-receipt .order-receipt {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    overflow: visible !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body.printing-order-receipt .receipt-print-hidden {
+    display: none !important;
+  }
+
+  body.printing-order-receipt .order-receipt section,
+  body.printing-order-receipt .order-receipt tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 }
 
