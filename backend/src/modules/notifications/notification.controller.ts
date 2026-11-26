@@ -4,7 +4,7 @@ import { AgroStore, NotificationRecord } from '../../database/store.js';
 
 export class NotificationController {
   public static async listNotifications(req: Request, res: Response): Promise<Response> {
-    const userId = req.user ? req.user.userId : 'usr-buyer-patrick';
+    const userId = req.user!.userId;
     const notifs = AgroStore.notifications.filter(
       (n) => n.userId === userId || n.userId === 'all'
     );
@@ -18,6 +18,10 @@ export class NotificationController {
     const notif = AgroStore.notifications.find((n) => n.id === id);
     if (!notif) {
       return sendError(res, `Notification '${id}' introuvable`, 404, 'NOT_FOUND');
+    }
+
+    if (notif.userId !== req.user?.userId && !req.user?.roles?.includes('ADMIN')) {
+      return sendError(res, 'Accès interdit à cette notification', 403, 'FORBIDDEN_NOTIFICATION_ACCESS');
     }
 
     notif.isRead = true;
