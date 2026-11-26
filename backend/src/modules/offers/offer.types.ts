@@ -9,18 +9,16 @@ export interface SellerOfferItem {
   productName: string;
   categoryName: string;
   unit: string;
-  // Stock unique et partagé entre détail et gros
+  // Stock unique partagé quel que soit le tarif appliqué
   stockQuantity: number;
   isAvailable: boolean;
 
-  // Prix au détail
+  // Prix unitaire
   retailPriceCdf: number;
-  retailPriceUsd: number;
   retailMinQuantity: number;
 
-  // Prix de gros
+  // Prix par quantité
   wholesalePriceCdf?: number;
-  wholesalePriceUsd?: number;
   wholesaleMinQuantity?: number;
 
   // Services et garanties offerts par ce vendeur
