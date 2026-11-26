@@ -703,6 +703,7 @@ async function runBusinessRuleTests() {
   assert(createManagedAdmin.status === 201, 'Le super admin doit pouvoir créer un compte administrateur');
   createdTestUserIds.push(createManagedAdmin.body.data.id);
   assert(createManagedAdmin.body.data.isActive, 'Un nouvel administrateur doit être actif par défaut');
+  assert(createManagedAdmin.body.data.mustChangePassword, 'Un administrateur créé par le super admin doit changer son mot de passe à la première connexion');
   const managedAdmins = await request(
     'GET',
     '/api/v1/admin/admins',
@@ -739,6 +740,75 @@ async function runBusinessRuleTests() {
   assert(
     enableManagedAdmin.status === 200 && enableManagedAdmin.body.data.isActive === true,
     'Le super admin doit pouvoir réactiver un administrateur'
+  );
+  const firstManagedAdminLogin = await request(
+    'POST',
+    '/api/v1/auth/login',
+    { email: createManagedAdmin.body.data.email, password: 'ManagedAdmin123!' },
+    { 'content-type': 'application/json' }
+  );
+  assert(
+    firstManagedAdminLogin.status === 200 && firstManagedAdminLogin.body.data.user.mustChangePassword === true,
+    'Un administrateur géré doit être invité à changer son mot de passe lors de sa première connexion'
+  );
+  const managedAdminToken = firstManagedAdminLogin.body.data.token;
+  const managedAdminSession = await request(
+    'GET',
+    '/api/v1/auth/me',
+    null,
+    { authorization: `Bearer ${managedAdminToken}` }
+  );
+  assert(
+    managedAdminSession.status === 200 && managedAdminSession.body.data.mustChangePassword === true,
+    'La session doit conserver l’indicateur de changement initial du mot de passe'
+  );
+  const managedAdminBlocked = await request(
+    'GET',
+    '/api/v1/admin/stats',
+    null,
+    { authorization: `Bearer ${managedAdminToken}` }
+  );
+  assert(
+    managedAdminBlocked.status === 403 && managedAdminBlocked.body.error.code === 'PASSWORD_CHANGE_REQUIRED',
+    'Les routes protégées doivent être bloquées tant que l’administrateur n’a pas changé son mot de passe'
+  );
+  const rejectedAdminPasswordChange = await request(
+    'POST',
+    '/api/v1/auth/change-password',
+    { currentPassword: 'IncorrectPassword123!', newPassword: 'ManagedAdminChanged123!' },
+    { authorization: `Bearer ${managedAdminToken}`, 'content-type': 'application/json' }
+  );
+  assert(
+    rejectedAdminPasswordChange.status === 400 &&
+    rejectedAdminPasswordChange.body.error.code === 'CURRENT_PASSWORD_INVALID',
+    'Le changement de mot de passe doit vérifier le mot de passe actuel'
+  );
+  const managedAdminPasswordChange = await request(
+    'POST',
+    '/api/v1/auth/change-password',
+    { currentPassword: 'ManagedAdmin123!', newPassword: 'ManagedAdminChanged123!' },
+    { authorization: `Bearer ${managedAdminToken}`, 'content-type': 'application/json' }
+  );
+  assert(
+    managedAdminPasswordChange.status === 200,
+    `L’administrateur doit pouvoir définir un nouveau mot de passe (reçu: ${managedAdminPasswordChange.status}, ${JSON.stringify(managedAdminPasswordChange.body)})`
+  );
+  const managedAdminAccess = await request(
+    'GET',
+    '/api/v1/admin/stats',
+    null,
+    { authorization: `Bearer ${managedAdminToken}` }
+  );
+  assert(managedAdminAccess.status === 200, 'L’administrateur doit retrouver ses accès après le changement du mot de passe');
+  const changedAdminLogin = await request(
+    'POST',
+    '/api/v1/auth/login',
+    { email: createManagedAdmin.body.data.email, password: 'ManagedAdminChanged123!' },
+    { 'content-type': 'application/json' }
+  );
+  assert(
+    changedAdminLogin.status === 200 && changedAdminLogin.body.data.user.mustChangePassword === false,
+    'Le nouveau mot de passe doit permettre une connexion normale sans redemander le changement initial'
   );
 
   const disableSellerRes = await request(
@@ -865,6 +935,34 @@ async function runBusinessRuleTests() {
     'Le livreur créé doit se connecter avec son rôle dédié'
   );
   const courierToken = courierLoginRes.body.data.token;
+  assert(
+    courierLoginRes.body.data.user.mustChangePassword === true,
+    'Un livreur créé par l’administration doit changer son mot de passe à la première connexion'
+  );
+  const courierProtectedRes = await request(
+    'GET',
+    '/api/v1/deliveries/mine',
+    null,
+    { authorization: `Bearer ${courierToken}` }
+  );
+  assert(
+    courierProtectedRes.status === 403 && courierProtectedRes.body.error.code === 'PASSWORD_CHANGE_REQUIRED',
+    'Un livreur ne doit pas accéder aux routes protégées avant le changement initial de mot de passe'
+  );
+  const courierPasswordChange = await request(
+    'POST',
+    '/api/v1/auth/change-password',
+    { currentPassword: courierPassword, newPassword: 'CourierChanged123!' },
+    { authorization: `Bearer ${courierToken}`, 'content-type': 'application/json' }
+  );
+  assert(courierPasswordChange.status === 200, 'Le livreur doit pouvoir modifier son mot de passe initial');
+  const courierDashboardRes = await request(
+    'GET',
+    '/api/v1/deliveries/mine',
+    null,
+    { authorization: `Bearer ${courierToken}` }
+  );
+  assert(courierDashboardRes.status === 200, 'Le livreur peut accéder à ses routes après le changement du mot de passe');
 
   for (const status of ['CONFIRMED', 'PREPARING', 'READY_FOR_PICKUP']) {
     const sellerStatusRes = await request(
