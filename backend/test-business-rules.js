@@ -281,6 +281,19 @@ async function runBusinessRuleTests() {
     'Chaque sous-commande doit appartenir à un vendeur distinct'
   );
   assert(parentOrder.currency === 'CDF', 'La commande doit être enregistrée uniquement en CDF');
+  assert(parentOrder.vatRatePercent === 16, 'La TVA doit être fixée à 16 % pour la nouvelle commande');
+  assert(
+    Math.abs(parentOrder.vatAmountCdf - parentOrder.subOrders.reduce((sum, subOrder) => sum + subOrder.vatAmountCdf, 0)) < 0.01,
+    'La TVA de la commande parent doit correspondre à la somme des TVA par vendeur'
+  );
+  assert(
+    Math.abs(parentOrder.totalAmountCdf - parentOrder.totalItemsCdf - parentOrder.vatAmountCdf) < 0.01,
+    'Le total à payer doit inclure la TVA au-dessus du sous-total'
+  );
+  assert(
+    parentOrder.subOrders.every((subOrder) => Math.abs(subOrder.totalAmountCdf - subOrder.subtotalCdf - subOrder.vatAmountCdf) < 0.01),
+    'Le montant à remettre au livreur doit inclure la TVA propre à chaque vendeur'
+  );
   assert(!('exchangeRateSnapshot' in orderRes.body.data), 'Aucun taux de change ne doit être exposé dans la commande');
   assert(!('totalAmountUsd' in orderRes.body.data), 'La commande publique ne doit exposer que les montants CDF');
   assert(!('subtotalUsd' in parentOrder.subOrders[0]), 'Les sous-commandes publiques ne doivent exposer que les montants CDF');
@@ -889,6 +902,19 @@ async function runBusinessRuleTests() {
   );
   createdTestOrderIds.push(persistedOrderRes.body.data.id);
   const persistedSubOrder = persistedOrderRes.body.data.subOrders[0];
+  assert(persistedOrderRes.body.data.vatRatePercent === 16, 'La TVA à 16 % doit être persistée sur la commande');
+  assert(
+    Math.abs(
+      persistedOrderRes.body.data.totalAmountCdf -
+      persistedOrderRes.body.data.totalItemsCdf -
+      persistedOrderRes.body.data.vatAmountCdf
+    ) < 0.01,
+    'Le total persisté de la commande doit inclure la TVA'
+  );
+  assert(
+    Math.abs(persistedSubOrder.totalAmountCdf - persistedSubOrder.subtotalCdf - persistedSubOrder.vatAmountCdf) < 0.01,
+    'Le montant dû au livreur pour une sous-commande doit inclure la TVA persistée'
+  );
   assert(persistedSubOrder.commissionRate === 12.5, 'Le taux configuré doit être appliqué aux nouvelles sous-commandes');
   assert(
     Math.abs(persistedSubOrder.commissionAmountCdf - persistedSubOrder.subtotalCdf * 0.125) < 0.01,
