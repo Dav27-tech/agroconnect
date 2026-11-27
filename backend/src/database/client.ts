@@ -1,8 +1,8 @@
 import { env } from '../config/env.js';
+import { Pool, PoolClient, QueryResult, QueryResultRow } from 'pg';
 
 export interface DatabaseStatus {
   provider: 'postgresql';
-  configuredUrl: string;
   isConnected: boolean;
   message: string;
 }
@@ -13,6 +13,7 @@ export interface DatabaseStatus {
  * le provisionnement d'une instance PostgreSQL en local.
  */
 class DatabaseManager {
+  private readonly pool = new Pool({ connectionString: env.DATABASE_URL });
   private isConnected = false;
   private connectionAttempted = false;
 
@@ -21,14 +22,10 @@ class DatabaseManager {
     this.connectionAttempted = true;
 
     try {
-      // Masquer le mot de passe pour la journalisation
-      const sanitizedUrl = env.DATABASE_URL.replace(/:([^:@]+)@/, ':****@');
-      console.log(`🔌 Initialisation de la connexion base de données (${sanitizedUrl})...`);
-
-      // Lorsque l'instance PostgreSQL est active, PrismaClient prend le relais
-      this.isConnected = false; // Initialisation préliminaire sécurisée
-      console.log('ℹ️ Base de données PostgreSQL configurée pour AgroConnect.');
-      return this.isConnected;
+      await this.pool.query('SELECT 1');
+      this.isConnected = true;
+      console.log('✅ Connexion PostgreSQL établie.');
+      return true;
     } catch (error) {
       console.warn('⚠️ Base de données non connectée au démarrage :', (error as Error).message);
       this.isConnected = false;
@@ -37,18 +34,36 @@ class DatabaseManager {
   }
 
   public getStatus(): DatabaseStatus {
-    const sanitizedUrl = env.DATABASE_URL.replace(/:([^:@]+)@/, ':****@');
     return {
       provider: 'postgresql',
-      configuredUrl: sanitizedUrl,
       isConnected: this.isConnected,
       message: this.isConnected
         ? 'Connecté à la base de données PostgreSQL'
-        : 'Prisma configuré. En attente de migration ou démarrage de l\'instance PostgreSQL',
+        : 'Base de données PostgreSQL indisponible',
     };
   }
 
+  public query<Row extends QueryResultRow = QueryResultRow>(text: string, values?: unknown[]): Promise<QueryResult<Row>> {
+    return this.pool.query<Row>(text, values as never);
+  }
+
+  public async transaction<T>(callback: (client: PoolClient) => Promise<T>): Promise<T> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await callback(client);
+      await client.query('COMMIT');
+      return result;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   public async disconnect(): Promise<void> {
+    await this.pool.end();
     this.isConnected = false;
     console.log('🔌 Connexion base de données clôturée.');
   }
