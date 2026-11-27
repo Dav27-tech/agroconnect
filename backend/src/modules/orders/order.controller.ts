@@ -9,7 +9,7 @@ import {
   SubOrderStatus,
 } from '../../database/store.js';
 import { Money } from '../../common/money.js';
-import { isValidDRCProvince } from '../../config/drc.js';
+import { isValidDRCProvince, VAT_RATE_PERCENT } from '../../config/drc.js';
 import crypto from 'node:crypto';
 import { dbManager } from '../../database/client.js';
 import { publishOrderCreated, publishOrderUpdated } from '../../common/realtime.js';
@@ -80,13 +80,15 @@ export class OrderController {
   public static async getMyOrders(req: Request, res: Response): Promise<Response> {
     const result = await dbManager.query(
       `SELECT p."id", p."orderNumber", p."buyerId", p."status", p."currency",
-              p."totalItemsCdf", p."deliveryFeeCdf", p."totalAmountCdf", p."deliveryProvince", p."deliveryCity",
+              p."totalItemsCdf", p."vatRatePercent", p."vatAmountCdf",
+              p."deliveryFeeCdf", p."totalAmountCdf", p."deliveryProvince", p."deliveryCity",
               p."deliveryCommune", p."deliveryAddress", p."recipientName", p."recipientPhone",
               p."deliveryInstructions", p."createdAt",
               COALESCE(JSON_AGG(JSON_BUILD_OBJECT(
                 'id', so."id", 'subOrderNumber', so."subOrderNumber", 'parentOrderId', so."parentOrderId",
                 'sellerId', so."sellerId", 'sellerName', s."businessName", 'status', so."status",
-                'subtotalCdf', so."subtotalCdf",
+                'subtotalCdf', so."subtotalCdf", 'vatAmountCdf', so."vatAmountCdf",
+                'totalAmountCdf', so."totalAmountCdf",
                 'commissionRate', so."commissionRate", 'commissionAmountCdf', so."commissionAmountCdf",
                 'payoutAmountCdf', so."payoutAmountCdf", 'payoutStatus', so."payoutStatus",
                 'deliveryStatus', d."status", 'deliveredAt', d."deliveredAt"
@@ -104,6 +106,8 @@ export class OrderController {
     return sendSuccess(res, result.rows.map((order) => ({
       ...order,
       totalItemsCdf: Number(order.totalItemsCdf),
+      vatRatePercent: Number(order.vatRatePercent),
+      vatAmountCdf: Number(order.vatAmountCdf),
       deliveryFeeCdf: Number(order.deliveryFeeCdf),
       totalAmountCdf: Number(order.totalAmountCdf),
       subOrders: order.subOrders.map((subOrder: Record<string, unknown>) => Object.fromEntries(
@@ -259,6 +263,8 @@ export class OrderController {
           commissionAmountUsd: 0,
           payoutAmountCdf: 0,
           payoutAmountUsd: 0,
+          vatAmountCdf: 0,
+          totalAmountCdf: 0,
           payoutStatus: 'PENDING',
           deliveryId,
           createdAt: new Date(),
@@ -303,9 +309,12 @@ export class OrderController {
       const subtotalCdfScaled = Money.toScaled(subOrder.subtotalCdf);
 
       const commissionCdfScaled = Money.calculateCommission(subtotalCdfScaled, subOrder.commissionRate);
+      const vatCdfScaled = Money.calculatePercentage(subtotalCdfScaled, VAT_RATE_PERCENT);
 
       const payoutCdfScaled = Money.subtract(subtotalCdfScaled, commissionCdfScaled);
 
+      subOrder.vatAmountCdf = Money.fromScaled(vatCdfScaled);
+      subOrder.totalAmountCdf = Money.fromScaled(Money.add(subtotalCdfScaled, vatCdfScaled));
       subOrder.commissionAmountCdf = Money.fromScaled(commissionCdfScaled);
       subOrder.commissionAmountUsd = 0;
       subOrder.payoutAmountCdf = Money.fromScaled(payoutCdfScaled);
@@ -366,6 +375,10 @@ export class OrderController {
     createdOrderItems.forEach((item) => AgroStore.orderItems.push(item));
 
     // 5. Commande Parent Finale
+    const totalVatCdfScaled = subOrdersList.reduce(
+      (total, subOrder) => Money.add(total, Money.toScaled(subOrder.vatAmountCdf)),
+      0n
+    );
     const parentOrder: ParentOrderRecord = {
       id: parentOrderId,
       orderNumber,
@@ -373,10 +386,12 @@ export class OrderController {
       status: 'PENDING',
       currency,
       totalItemsCdf: Money.fromScaled(grandTotalCdfScaled),
+      vatRatePercent: VAT_RATE_PERCENT,
+      vatAmountCdf: Money.fromScaled(totalVatCdfScaled),
       totalItemsUsd: 0,
       deliveryFeeCdf: 0,
       deliveryFeeUsd: 0,
-      totalAmountCdf: Money.fromScaled(grandTotalCdfScaled),
+      totalAmountCdf: Money.fromScaled(Money.add(grandTotalCdfScaled, totalVatCdfScaled)),
       totalAmountUsd: 0,
       deliveryProvince,
       deliveryCity,
@@ -430,10 +445,12 @@ export class OrderController {
         return sendError(res, 'Cette clé idempotente a déjà été utilisée avec un contenu différent', 409, 'IDEMPOTENCY_KEY_REUSED');
       }
       const previous = await dbManager.query(
-        `SELECT p."id", p."orderNumber", p."status", p."totalAmountCdf",
+        `SELECT p."id", p."orderNumber", p."status", p."totalItemsCdf",
+                p."vatRatePercent", p."vatAmountCdf", p."totalAmountCdf",
                 COALESCE(JSON_AGG(JSON_BUILD_OBJECT(
                   'id', so."id", 'sellerId', so."sellerId", 'sellerName', s."businessName",
-                  'status', so."status", 'subtotalCdf', so."subtotalCdf"
+                  'status', so."status", 'subtotalCdf', so."subtotalCdf",
+                  'vatAmountCdf', so."vatAmountCdf", 'totalAmountCdf', so."totalAmountCdf"
                 )) FILTER (WHERE so."id" IS NOT NULL), '[]'::json) AS "subOrders"
          FROM "parent_orders" p
          LEFT JOIN "sub_orders" so ON so."parentOrderId" = p."id"
@@ -531,6 +548,11 @@ export class OrderController {
         }
 
         const totalCdf = Money.fromScaled(total);
+        const totalVatScaled = Array.from(sellerGroups.values()).reduce(
+          (sum, group) => Money.add(sum, Money.calculatePercentage(group.subtotal, VAT_RATE_PERCENT)),
+          0n
+        );
+        const totalWithVatCdf = Money.fromScaled(Money.add(total, totalVatScaled));
         const commissionSettings = await client.query<{ rate: string }>(
           `SELECT "commissionRatePercent"::text AS "rate"
            FROM "platform_settings" WHERE "id" = 'singleton' LIMIT 1`
@@ -545,15 +567,17 @@ export class OrderController {
         const parentInsert = await client.query(
           `INSERT INTO "parent_orders"
              ("id", "orderNumber", "idempotencyKey", "idempotencyHash", "buyerId", "exchangeRateSnapshot",
-              "currency", "totalItemsCdf", "totalItemsUsd", "deliveryFeeCdf", "deliveryFeeUsd",
+              "currency", "totalItemsCdf", "vatRatePercent", "vatAmountCdf", "totalItemsUsd", "deliveryFeeCdf", "deliveryFeeUsd",
               "totalAmountCdf", "totalAmountUsd", "deliveryProvince", "deliveryCity", "deliveryCommune",
               "deliveryAddress", "recipientName", "recipientPhone", "deliveryInstructions")
-           VALUES ($1, $2, $3, $4, $5, 1, 'CDF', $6, 0, 0, 0, $6, 0, $7, $8, $9, $10, $11, $12, $13)
+           VALUES ($1, $2, $3, $4, $5, 1, 'CDF', $6, $7, $8, 0, 0, 0, $9, 0, $10, $11, $12, $13, $14, $15, $16)
            ON CONFLICT ("buyerId", "idempotencyKey") DO NOTHING
            RETURNING "id"`,
           [
             parentOrderId, orderNumber, input.idempotencyKey, input.requestHash, buyerId,
-            totalCdf, input.deliveryProvince, input.deliveryCity, input.deliveryCommune ?? null,
+            totalCdf, VAT_RATE_PERCENT,
+            Money.fromScaled(totalVatScaled), totalWithVatCdf,
+            input.deliveryProvince, input.deliveryCity, input.deliveryCommune ?? null,
             input.deliveryAddress, input.recipientName, input.recipientPhone, input.deliveryInstructions ?? null,
           ]
         );
@@ -567,15 +591,20 @@ export class OrderController {
           const subOrderId = crypto.randomUUID();
           const subOrderNumber = `${orderNumber}-${String.fromCharCode(64 + sellerIndex)}`;
           const subtotalCdf = Money.fromScaled(group.subtotal);
+          const vatCdf = Money.fromScaled(Money.calculatePercentage(group.subtotal, VAT_RATE_PERCENT));
+          const totalWithVatCdf = Money.fromScaled(Money.add(
+            group.subtotal,
+            Money.calculatePercentage(group.subtotal, VAT_RATE_PERCENT)
+          ));
           const commissionCdf = Money.fromScaled(Money.calculateCommission(group.subtotal, commissionRate));
           const sellerEarningsCdf = Money.fromScaled(Money.subtract(group.subtotal, Money.toScaled(commissionCdf)));
           await client.query(
             `INSERT INTO "sub_orders"
                ("id", "subOrderNumber", "parentOrderId", "sellerId", "status",
-                "subtotalCdf", "subtotalUsd", "commissionRate", "commissionAmountCdf",
+                "subtotalCdf", "vatAmountCdf", "totalAmountCdf", "subtotalUsd", "commissionRate", "commissionAmountCdf",
                 "commissionAmountUsd", "payoutAmountCdf", "payoutAmountUsd", "payoutStatus")
-             VALUES ($1, $2, $3, $4, 'PENDING', $5, 0, $6, $7, 0, $8, 0, 'PENDING')`,
-            [subOrderId, subOrderNumber, parentOrderId, sellerId, subtotalCdf, commissionRate, commissionCdf, sellerEarningsCdf]
+             VALUES ($1, $2, $3, $4, 'PENDING', $5, $6, $7, 0, $8, $9, 0, $10, 0, 'PENDING')`,
+            [subOrderId, subOrderNumber, parentOrderId, sellerId, subtotalCdf, vatCdf, totalWithVatCdf, commissionRate, commissionCdf, sellerEarningsCdf]
           );
           await client.query(
             `INSERT INTO "deliveries"
@@ -647,6 +676,8 @@ export class OrderController {
             sellerName: group.seller.sellerName,
             status: 'PENDING',
             subtotalCdf,
+            vatAmountCdf: vatCdf,
+            totalAmountCdf: totalWithVatCdf,
             commissionRate,
             commissionAmountCdf: commissionCdf,
             payoutAmountCdf: sellerEarningsCdf,
@@ -668,8 +699,10 @@ export class OrderController {
             status: 'PENDING',
             currency: 'CDF',
             totalItemsCdf: totalCdf,
+            vatRatePercent: VAT_RATE_PERCENT,
+            vatAmountCdf: Money.fromScaled(totalVatScaled),
             deliveryFeeCdf: 0,
-            totalAmountCdf: totalCdf,
+            totalAmountCdf: totalWithVatCdf,
             deliveryProvince: input.deliveryProvince,
             deliveryCity: input.deliveryCity,
             deliveryCommune: input.deliveryCommune,
@@ -725,6 +758,8 @@ export class OrderController {
         status: string;
         currency: string;
         totalItemsCdf: string;
+        vatRatePercent: string;
+        vatAmountCdf: string;
         deliveryFeeCdf: string;
         totalAmountCdf: string;
         deliveryProvince: string;
@@ -737,7 +772,8 @@ export class OrderController {
         createdAt: Date;
       }>(
         `SELECT "id", "buyerId", "orderNumber", "status", "currency",
-                "totalItemsCdf"::text AS "totalItemsCdf", "deliveryFeeCdf"::text AS "deliveryFeeCdf",
+                "totalItemsCdf"::text AS "totalItemsCdf", "vatRatePercent"::text AS "vatRatePercent",
+                "vatAmountCdf"::text AS "vatAmountCdf", "deliveryFeeCdf"::text AS "deliveryFeeCdf",
                 "totalAmountCdf"::text AS "totalAmountCdf", "deliveryProvince", "deliveryCity",
                 "deliveryCommune", "deliveryAddress", "recipientName", "recipientPhone",
                 "deliveryInstructions", "createdAt"
@@ -753,6 +789,7 @@ export class OrderController {
         const subOrders = await dbManager.query(
           `SELECT so."id", so."subOrderNumber", so."parentOrderId", so."sellerId",
                   s."businessName" AS "sellerName", so."status", so."subtotalCdf",
+                  so."vatAmountCdf", so."totalAmountCdf",
                   so."commissionRate", so."commissionAmountCdf", so."payoutAmountCdf",
                   so."payoutStatus", d."status" AS "deliveryStatus",
                   d."collectionMethod", d."collectedAmountCdf", d."platformDepositReceivedAt",
@@ -777,11 +814,15 @@ export class OrderController {
         return sendSuccess(res, {
           ...storedOrder,
           totalItemsCdf: Number(storedOrder.totalItemsCdf),
+          vatRatePercent: Number(storedOrder.vatRatePercent),
+          vatAmountCdf: Number(storedOrder.vatAmountCdf),
           deliveryFeeCdf: Number(storedOrder.deliveryFeeCdf),
           totalAmountCdf: Number(storedOrder.totalAmountCdf),
           subOrders: subOrders.rows.map((subOrder) => ({
             ...subOrder,
             subtotalCdf: Number(subOrder.subtotalCdf),
+            vatAmountCdf: Number(subOrder.vatAmountCdf),
+            totalAmountCdf: Number(subOrder.totalAmountCdf),
             commissionRate: Number(subOrder.commissionRate),
             commissionAmountCdf: Number(subOrder.commissionAmountCdf),
             payoutAmountCdf: Number(subOrder.payoutAmountCdf),
@@ -845,6 +886,8 @@ export class OrderController {
       sellerName: string;
       status: string;
       subtotalCdf: string;
+      vatAmountCdf: string;
+      totalAmountCdf: string;
       commissionRate: string;
       commissionAmountCdf: string;
       payoutAmountCdf: string;
@@ -860,6 +903,8 @@ export class OrderController {
       `SELECT so."id", so."subOrderNumber", so."parentOrderId", so."sellerId",
               s."businessName" AS "sellerName", so."status",
               so."subtotalCdf"::text AS "subtotalCdf",
+              so."vatAmountCdf"::text AS "vatAmountCdf",
+              so."totalAmountCdf"::text AS "totalAmountCdf",
               so."commissionRate"::text AS "commissionRate",
               so."commissionAmountCdf"::text AS "commissionAmountCdf",
               so."payoutAmountCdf"::text AS "payoutAmountCdf",
@@ -890,6 +935,8 @@ export class OrderController {
       const dbSubOrders = persisted.rows.map((subOrder) => ({
         ...subOrder,
         subtotalCdf: Number(subOrder.subtotalCdf),
+        vatAmountCdf: Number(subOrder.vatAmountCdf),
+        totalAmountCdf: Number(subOrder.totalAmountCdf),
         commissionRate: Number(subOrder.commissionRate),
         commissionAmountCdf: Number(subOrder.commissionAmountCdf),
         payoutAmountCdf: Number(subOrder.payoutAmountCdf),
