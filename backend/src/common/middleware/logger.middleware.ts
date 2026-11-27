@@ -10,7 +10,7 @@ export function requestLogger(req: Request, res: Response, next: NextFunction): 
 
   res.on('finish', () => {
     const duration = Date.now() - startTime;
-    const { method, originalUrl } = req;
+    const { method, path } = req;
     const { statusCode } = res;
     const timestamp = new Date().toISOString();
 
@@ -19,7 +19,7 @@ export function requestLogger(req: Request, res: Response, next: NextFunction): 
     const reset = '\x1b[0m';
 
     console.log(
-      `[${timestamp}] [${correlationId}] ${method} ${originalUrl} ${color}${statusCode}${reset} - ${duration}ms`
+      `[${timestamp}] [${correlationId}] ${method} ${path} ${color}${statusCode}${reset} - ${duration}ms`
     );
   });
 
