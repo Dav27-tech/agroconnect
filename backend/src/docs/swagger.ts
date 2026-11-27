@@ -3,15 +3,17 @@ export const openApiSpecification = {
   info: {
     title: 'AgroConnect RDC — API REST & Spécification Métier',
     version: '1.0.0',
-    description: `### Plateforme d'intermédiation agricole multi-acteurs en République Démocratique du Congo (RDC)
+    description: `API AgroConnect connectée à PostgreSQL. Le client règle le livreur à la livraison; le livreur déclare la collecte et l’administration confirme la remise des fonds à la plateforme.
+
+  ### Plateforme d'intermédiation agricole multi-acteurs en République Démocratique du Congo (RDC)
 
 **Règles architecturales et contraintes métier clés :**
 1. **Intermédiation stricte :** AgroConnect n'achète, ne possède, ne stocke ni ne revend aucun produit agricole. Tout le stock appartient exclusivement aux vendeurs.
-2. **Stock partagé :** Pour une même offre vendeur, les ventes au détail et en gros partagent un stock physique unique afin de prévenir tout sur-stockage.
-3. **Multi-rôles :** Un utilisateur peut cumuler plusieurs rôles (ex: Agriculteur et Acheteur d'intrants).
+2. **Stock partagé :** Pour une même offre vendeur, toutes les commandes partagent un stock physique unique afin de prévenir tout sur-stockage.
+3. **Comptes :** Les acheteurs et vendeurs s'inscrivent et se connectent avec une adresse e-mail; les rôles publics sont limités à acheteur et vendeur-agriculteur, en plus de l'administrateur.
 4. **Découpage de commande :** Un panier multi-vendeurs génère une commande parent pour le client et des sous-commandes isolées pour chaque vendeur.
-5. **Autonomie de suivi :** Le domaine logistique de livraison est indépendant du statut de commande.
-6. **Bidevise & Taux figé :** Prise en charge du Franc Congolais (CDF) et Dollar Américain (USD). Le taux de change est figé de manière immuable à la création de chaque commande.
+5. **Devise :** Tous les prix et totaux de la plateforme sont en Franc Congolais (CDF), sans conversion ni taux de change.
+6. **Session :** Les sessions JWT expirent après sept jours.
 7. **Calculs financiers exacts :** Arithmétique à virgule fixe (BigInt) pour éliminer toute imprécision d'arrondi.`,
     contact: {
       name: 'Support Technique AgroConnect RDC',
@@ -55,7 +57,7 @@ export const openApiSpecification = {
             type: 'array',
             items: {
               type: 'string',
-              enum: ['BUYER', 'SELLER', 'DELIVERY_PROVIDER', 'DELIVERY_PERSON', 'ADMIN'],
+              enum: ['ADMIN', 'BUYER', 'SELLER'],
             },
           },
           email: { type: 'string', example: 'coopak@agroconnect.cd' },
@@ -70,7 +72,7 @@ export const openApiSpecification = {
           province: { type: 'string', example: 'Kwilu' },
           city: { type: 'string', example: 'Kikwit' },
           verificationStatus: { type: 'string', enum: ['PENDING', 'UNDER_REVIEW', 'VERIFIED', 'REJECTED'] },
-          commissionRate: { type: 'number', example: 5.0 },
+          commissionRate: { type: 'number', example: 10 },
         },
       },
       Offer: {
@@ -110,39 +112,35 @@ export const openApiSpecification = {
     },
   },
   tags: [
-    { name: 'Authentification & Rôles', description: 'Gestion des comptes et support multi-rôles natif' },
-    { name: 'Vendeurs', description: 'Profils vérifiés (Agriculteurs, Revendeurs, Fournisseurs d\'intrants)' },
+    { name: 'Authentification & Rôles', description: 'Comptes acheteur, vendeur, livreur, administrateur et super administrateur avec connexion par email' },
+    { name: 'Vendeurs', description: 'Profils de vendeurs et statut de vérification' },
     { name: 'Catalogue & Filières', description: 'Produits communs et catégories (0 stock intermédiaire)' },
     { name: 'Offres & Prix', description: 'Offres spécifiques par vendeur avec tarification détail & gros' },
     { name: 'Inventaire & Mouvements', description: 'Gestion du stock partagé et journal d\'audit des mouvements' },
-    { name: 'Panier & Devises', description: 'Calculs bidevises CDF/USD et validation temps réel' },
+    { name: 'Panier & Devise', description: 'Calculs en CDF uniquement et validation temps réel' },
     { name: 'Commandes Multi-Vendeurs', description: 'Découpage en commande parent et sous-commandes' },
-    { name: 'Paiements Sécurisés', description: 'Mobile Money et vérification stricte backend' },
-    { name: 'Livraison & Traçabilité', description: 'Suivi logistique indépendant et jalons géographiques' },
-    { name: 'Finance & Commissions', description: 'Comptabilité des commissions (5%) et reversements vendeurs' },
-    { name: 'Administration & Taux', description: 'Taux de change USD/CDF et gouvernance' },
+    { name: 'Livraisons & Collectes', description: 'Affectation des livreurs, confirmation manuelle de la collecte et remise à AgroConnect' },
+    { name: 'Finance & Commissions', description: 'Commission configurable et confirmations de règlement hors plateforme' },
+    { name: 'Administration', description: 'Gouvernance et pilotage de la plateforme' },
   ],
   paths: {
     '/auth/register': {
       post: {
         tags: ['Authentification & Rôles'],
-        summary: 'Inscription d\'un utilisateur (support multi-rôles)',
+        summary: 'Inscription d\'un acheteur ou vendeur-agriculteur avec email obligatoire',
         requestBody: {
           required: true,
           content: {
             'application/json': {
               schema: {
                 type: 'object',
-                required: ['phoneNumber', 'fullName', 'password'],
+                required: ['phoneNumber', 'fullName', 'password', 'email'],
                 properties: {
                   phoneNumber: { type: 'string', example: '+243818001122' },
                   fullName: { type: 'string', example: 'Papa Jean-Pierre Kabamba' },
                   password: { type: 'string', example: 'SecretAgro2026!' },
-                  roles: {
-                    type: 'array',
-                    items: { type: 'string', enum: ['BUYER', 'SELLER', 'DELIVERY_PROVIDER', 'DELIVERY_PERSON', 'ADMIN'] },
-                    example: ['SELLER', 'BUYER'],
-                  },
+                  email: { type: 'string', format: 'email', example: 'acheteur@example.cd' },
+                  role: { type: 'string', enum: ['BUYER', 'SELLER'], default: 'BUYER' },
                 },
               },
             },
@@ -154,16 +152,16 @@ export const openApiSpecification = {
     '/auth/login': {
       post: {
         tags: ['Authentification & Rôles'],
-        summary: 'Connexion par numéro de téléphone congolais',
+        summary: 'Connexion par adresse e-mail',
         requestBody: {
           required: true,
           content: {
             'application/json': {
               schema: {
                 type: 'object',
-                required: ['phoneNumber', 'password'],
+                required: ['email', 'password'],
                 properties: {
-                  phoneNumber: { type: 'string', example: '+243818001122' },
+                  email: { type: 'string', format: 'email', example: 'utilisateur@example.cd' },
                   password: { type: 'string', example: 'AdminAgro2026!' },
                 },
               },
@@ -179,6 +177,34 @@ export const openApiSpecification = {
         summary: 'Profil de l\'utilisateur connecté et profils associés',
         security: [{ BearerAuth: [] }],
         responses: { 200: { description: 'Profil complet' } },
+      },
+    },
+    '/auth/change-password': {
+      post: {
+        tags: ['Authentification & Rôles'],
+        summary: 'Modifier son mot de passe',
+        description: 'Requis à la première connexion pour les administrateurs et livreurs créés par la gestion de la plateforme.',
+        security: [{ BearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['currentPassword', 'newPassword'],
+                properties: {
+                  currentPassword: { type: 'string' },
+                  newPassword: { type: 'string', minLength: 10 },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          200: { description: 'Mot de passe modifié' },
+          400: { description: 'Mot de passe actuel incorrect ou nouveau mot de passe invalide' },
+          403: { description: 'Compte désactivé ou accès protégé par le changement initial du mot de passe' },
+        },
       },
     },
     '/categories': {
@@ -233,6 +259,26 @@ export const openApiSpecification = {
         responses: { 201: { description: 'Offre créée' } },
       },
     },
+    '/offers/{id}': {
+      put: {
+        tags: ['Offres & Prix'],
+        summary: 'Mise à jour d’une offre appartenant au vendeur connecté',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { 200: { description: 'Offre mise à jour' }, 403: { description: 'Accès interdit' } },
+      },
+      delete: {
+        tags: ['Offres & Prix'],
+        summary: 'Retrait de l’offre du catalogue en conservant son historique',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: {
+          200: { description: 'Offre retirée du catalogue' },
+          403: { description: 'Accès interdit' },
+          404: { description: 'Offre introuvable' },
+        },
+      },
+    },
     '/inventory/offer/{offerId}': {
       get: {
         tags: ['Inventaire & Mouvements'],
@@ -260,16 +306,17 @@ export const openApiSpecification = {
     },
     '/cart/calculate': {
       post: {
-        tags: ['Panier & Devises'],
-        summary: 'Calcul du panier multi-vendeurs avec bidevise et vérification des stocks',
-        responses: { 200: { description: 'Totaux et groupes vendeurs calculés' } },
+        tags: ['Panier & Devise'],
+        summary: 'Calcul du panier multi-vendeurs en CDF, vérification des stocks et aperçu de la TVA à 16 %',
+        responses: { 200: { description: 'Sous-totaux, TVA et totaux à payer calculés par vendeur' } },
       },
     },
     '/orders': {
       post: {
         tags: ['Commandes Multi-Vendeurs'],
-        summary: 'Création de la commande parent et découpage en sous-commandes vendeurs',
+        summary: 'Création de la commande parent avec TVA à 16 % et découpage en sous-commandes vendeurs',
         security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'Idempotency-Key', in: 'header', required: true, schema: { type: 'string', minLength: 8, maxLength: 128 } }],
         responses: { 201: { description: 'Commande parent et sous-commandes générées' } },
       },
     },
@@ -277,6 +324,7 @@ export const openApiSpecification = {
       get: {
         tags: ['Commandes Multi-Vendeurs'],
         summary: 'Détail d\'une commande parent avec l\'ensemble de ses sous-commandes',
+        security: [{ BearerAuth: [] }],
         parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
         responses: { 200: { description: 'Commande trouvée' } },
       },
@@ -299,19 +347,56 @@ export const openApiSpecification = {
         responses: { 200: { description: 'Statut mis à jour' } },
       },
     },
-    '/payments/checkout': {
-      post: {
-        tags: ['Paiements Sécurisés'],
-        summary: 'Initialisation du paiement centralisé (Mobile Money RDC)',
-        responses: { 200: { description: 'Paiement vérifié sur le backend' } },
+    '/deliveries/mine': {
+      get: {
+        tags: ['Livraisons & Collectes'],
+        summary: 'Lister les livraisons attribuées au livreur connecté',
+        security: [{ BearerAuth: [] }],
+        responses: { 200: { description: 'Livraisons et informations nécessaires à la remise en main propre' } },
       },
     },
-    '/deliveries/track/{code}': {
+    '/deliveries/operations': {
       get: {
-        tags: ['Livraison & Traçabilité'],
-        summary: 'Suivi public par code de tracking avec historique complet',
-        parameters: [{ name: 'code', in: 'path', required: true, schema: { type: 'string' } }],
-        responses: { 200: { description: 'Détail et historique du suivi logistique' } },
+        tags: ['Livraisons & Collectes'],
+        summary: 'Lister les commandes prêtes, les collectes et les remises à rapprocher',
+        security: [{ BearerAuth: [] }],
+        responses: { 200: { description: 'Tableau opérationnel réservé à l’administration' } },
+      },
+    },
+    '/deliveries/{id}/status': {
+      patch: {
+        tags: ['Livraisons & Collectes'],
+        summary: 'Mettre à jour un jalon de livraison (livreur assigné)',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { 200: { description: 'Jalon de livraison enregistré en base' }, 409: { description: 'Transition interdite' } },
+      },
+    },
+    '/deliveries/{id}/assign': {
+      post: {
+        tags: ['Livraisons & Collectes'],
+        summary: 'Affecter un livreur à une commande prête au retrait',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { 200: { description: 'Transporteur affecté' } },
+      },
+    },
+    '/deliveries/{id}/collection': {
+      post: {
+        tags: ['Livraisons & Collectes'],
+        summary: 'Confirmer la livraison et la collecte en espèces ou Mobile Money direct',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { 200: { description: 'Livraison et montant exact collecté enregistrés' }, 409: { description: 'Montant ou étape invalide' } },
+      },
+    },
+    '/deliveries/{id}/platform-deposit': {
+      post: {
+        tags: ['Livraisons & Collectes'],
+        summary: 'Confirmer que le livreur a remis les fonds à AgroConnect',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { 200: { description: 'Remise rapprochée et règlement vendeur disponible' }, 409: { description: 'Montant ou collecte invalide' } },
       },
     },
     '/finance/summary': {
@@ -325,30 +410,146 @@ export const openApiSpecification = {
     '/finance/seller/{sellerId}': {
       get: {
         tags: ['Finance & Commissions'],
-        summary: 'Relevé des ventes, commissions prélevées et gains nets d\'un vendeur',
+        summary: 'Relevé des ventes, commissions et règlements confirmés par le vendeur',
         security: [{ BearerAuth: [] }],
         parameters: [{ name: 'sellerId', in: 'path', required: true, schema: { type: 'string' } }],
         responses: { 200: { description: 'Relevé financier du vendeur' } },
       },
     },
-    '/admin/exchange-rate': {
+    '/admin/commission-settings': {
       get: {
-        tags: ['Administration & Taux'],
-        summary: 'Consultation du taux actif USD/CDF et de l\'historique des configurations',
-        responses: { 200: { description: 'Taux actuel et historique' } },
+        tags: ['Administration'],
+        summary: 'Consulter le taux de commission initialement fixé à 10 %',
+        security: [{ BearerAuth: [] }],
+        responses: { 200: { description: 'Taux de commission en vigueur' } },
+      },
+      patch: {
+        tags: ['Administration'],
+        summary: 'Modifier le taux appliqué aux nouvelles commandes',
+        security: [{ BearerAuth: [] }],
+        responses: { 200: { description: 'Taux mis à jour' } },
+      },
+    },
+    '/admin/couriers': {
+      get: {
+        tags: ['Administration'],
+        summary: 'Lister les livreurs gérés par AgroConnect',
+        security: [{ BearerAuth: [] }],
+        responses: { 200: { description: 'Livreurs et disponibilité' } },
       },
       post: {
-        tags: ['Administration & Taux'],
-        summary: 'Mise à jour du taux officiel de change (sans impacter les commandes antérieures)',
+        tags: ['Administration'],
+        summary: 'Créer un compte livreur géré par AgroConnect',
         security: [{ BearerAuth: [] }],
-        responses: { 200: { description: 'Nouveau taux enregistré' } },
+        responses: { 201: { description: 'Compte et profil livreur créés' } },
+      },
+    },
+    '/admin/admins': {
+      get: {
+        tags: ['Super administration'],
+        summary: 'Lister les comptes administrateurs hors super administrateurs',
+        security: [{ BearerAuth: [] }],
+        responses: { 200: { description: 'Comptes administrateurs et leur statut actif' } },
+      },
+      post: {
+        tags: ['Super administration'],
+        summary: 'Créer un compte administrateur actif',
+        security: [{ BearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['fullName', 'email', 'phoneNumber', 'password'],
+                properties: {
+                  fullName: { type: 'string' },
+                  email: { type: 'string', format: 'email' },
+                  phoneNumber: { type: 'string', example: '+243812345678' },
+                  password: { type: 'string', minLength: 12 },
+                },
+              },
+            },
+          },
+        },
+        responses: { 201: { description: 'Compte administrateur créé' }, 409: { description: 'Email ou téléphone déjà utilisé' } },
+      },
+    },
+    '/admin/admins/{userId}/status': {
+      patch: {
+        tags: ['Super administration'],
+        summary: 'Activer ou désactiver un compte administrateur',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'userId', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['isActive'],
+                properties: { isActive: { type: 'boolean' } },
+              },
+            },
+          },
+        },
+        responses: { 200: { description: 'Statut administrateur mis à jour' }, 404: { description: 'Compte administrateur introuvable' } },
       },
     },
     '/admin/stats': {
       get: {
-        tags: ['Administration & Taux'],
+        tags: ['Administration'],
         summary: 'Tableau de bord de surveillance de la plateforme en RDC',
+        security: [{ BearerAuth: [] }],
         responses: { 200: { description: 'Statistiques globales' } },
+      },
+    },
+    '/admin/seller-profiles': {
+      get: {
+        tags: ['Administration'],
+        summary: 'Lister les profils vendeurs pour validation ou gestion des comptes',
+        security: [{ BearerAuth: [] }],
+        parameters: [{
+          name: 'status',
+          in: 'query',
+          required: false,
+          schema: { type: 'string', enum: ['ALL', 'PENDING', 'UNDER_REVIEW', 'VERIFIED', 'REJECTED'], default: 'PENDING' },
+        }],
+        responses: { 200: { description: 'Liste des profils vendeurs et statut actif du compte' } },
+      },
+    },
+    '/admin/seller-profiles/{sellerId}/verification': {
+      patch: {
+        tags: ['Administration'],
+        summary: 'Mettre à jour le statut de vérification d’un profil vendeur',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'sellerId', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { 200: { description: 'Statut de vérification mis à jour' } },
+      },
+    },
+    '/admin/seller-profiles/{sellerId}/status': {
+      patch: {
+        tags: ['Administration'],
+        summary: 'Activer ou désactiver le compte d’un vendeur',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'sellerId', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['isActive'],
+                properties: { isActive: { type: 'boolean', example: false } },
+              },
+            },
+          },
+        },
+        responses: {
+          200: { description: 'Statut du compte vendeur mis à jour' },
+          403: { description: 'Accès réservé à un administrateur' },
+          404: { description: 'Profil vendeur introuvable' },
+        },
       },
     },
   },
@@ -423,7 +624,7 @@ export function getSwaggerHtml(): string {
       <span class="brand-badge">Marché Agricole RDC</span>
     </div>
     <div style="font-size: 0.85rem; opacity: 0.9;">
-      Taux actif : 1 USD = 2850 CDF • 26 Provinces
+      Devise : CDF • 26 Provinces
     </div>
   </div>
   <div id="swagger-ui"></div>
