@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { env } from '../config/env.js';
 
-export type UserRoleType = 'BUYER' | 'SELLER' | 'DELIVERY_PROVIDER' | 'DELIVERY_PERSON' | 'ADMIN';
+export type UserRoleType = 'BUYER' | 'SELLER' | 'DELIVERY_PERSON' | 'ADMIN' | 'SUPER_ADMIN';
 
 export interface TokenPayload {
   userId: string;
@@ -9,6 +9,7 @@ export interface TokenPayload {
   roles: UserRoleType[];
   role?: UserRoleType; // Rôle principal pour compatibilité descendante
   sellerId?: string;   // ID du profil vendeur si applicable
+  mustChangePassword?: boolean;
   exp: number; // Timestamp d'expiration en secondes
   iat: number; // Timestamp d'émission en secondes
 }
@@ -49,14 +50,14 @@ export class Security {
   }
 
   /**
-   * Génère un jeton d'authentification HMAC-SHA256 sécurisé (support multi-rôles)
+   * Génère un jeton d'authentification HMAC-SHA256 sécurisé avec ses rôles autorisés.
    */
   public static generateToken(
     userId: string,
     phoneNumber: string,
     rolesOrRole: UserRoleType[] | UserRoleType,
     sellerId?: string,
-    expiresInDays = 7
+    expiresInDays = Number.parseInt(env.JWT_EXPIRES_IN, 10)
   ): string {
     const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
     const now = Math.floor(Date.now() / 1000);
@@ -109,7 +110,13 @@ export class Security {
       const decoded = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as TokenPayload;
       const now = Math.floor(Date.now() / 1000);
 
-      if (decoded.exp < now) return null; // Jeton expiré
+      if (
+        typeof decoded.userId !== 'string'
+        || !Array.isArray(decoded.roles)
+        || !Number.isFinite(decoded.iat)
+        || !Number.isFinite(decoded.exp)
+        || decoded.exp <= now
+      ) return null;
 
       return decoded;
     } catch {
