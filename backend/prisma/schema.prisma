@@ -1,6 +1,5 @@
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 generator client {
@@ -17,6 +16,7 @@ enum UserRole {
   DELIVERY_PROVIDER
   DELIVERY_PERSON
   ADMIN
+  SUPER_ADMIN
 }
 
 enum SellerType {
@@ -103,6 +103,19 @@ enum PaymentProviderType {
   MANUAL_TEST
 }
 
+enum PlatformPaymentPurpose {
+  ORDER
+  SUBSCRIPTION
+  PROMOTION
+}
+
+enum PlatformPayoutStatus {
+  PENDING
+  PROCESSING
+  SUCCEEDED
+  FAILED
+}
+
 enum DeliveryStatus {
   PENDING
   ASSIGNED
@@ -122,6 +135,11 @@ enum PayoutStatus {
   FAILED
 }
 
+enum ManualCollectionMethod {
+  CASH
+  MOBILE_MONEY_DIRECT
+}
+
 // ----------------------------------------------------
 // MODELS
 // ----------------------------------------------------
@@ -134,6 +152,7 @@ model User {
   fullName      String
   roles         UserRole[] @default([BUYER]) // Support multi-rôles natif
   isActive      Boolean    @default(true)
+  mustChangePassword Boolean @default(false)
   preferredLang String     @default("fr")
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
@@ -159,7 +178,9 @@ model SellerProfile {
   city               String             // Ville ou territoire
   address            String?
   verificationStatus VerificationStatus @default(PENDING)
-  commissionRate     Decimal            @default(5.00) // % commission AgroConnect
+  commissionRate     Decimal            @default(0.00) // Taux vendeur historique; la commission actuelle est définie par platform_settings
+  goFreshPaySubMerchantCode String?      @unique
+  goFreshPaySubMerchantPhone String?
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
 
@@ -169,6 +190,8 @@ model SellerProfile {
   payouts            SellerPayout[]
   stockMovements     StockMovement[]
   financialRecords   FinancialRecord[]
+  subscriptions      SellerSubscription[]
+  promotions         OfferPromotion[]
 
   @@map("seller_profiles")
 }
@@ -237,6 +260,8 @@ model Offer {
   stockQuantity       Decimal        @default(0.00)
   unit                UnitOfMeasure  @default(KG)
   isAvailable         Boolean        @default(true)
+  isFeatured          Boolean        @default(false)
+  featuredUntil       DateTime?
   
   // Vente au détail (Retail)
   retailPriceCdf      Decimal
@@ -261,6 +286,7 @@ model Offer {
   orderItems          OrderItem[]
   services            OfferService[]
   stockMovements      StockMovement[]
+  promotions         OfferPromotion[]
   cartItems           CartItem[]
 
   @@map("offers")
@@ -347,6 +373,8 @@ model CartItem {
 model ParentOrder {
   id                   String            @id @default(uuid())
   orderNumber          String            @unique // AGC-ORD-202611-XXXX
+  idempotencyKey       String?
+  idempotencyHash      String?
   buyerId              String
   buyer                User              @relation("BuyerOrders", fields: [buyerId], references: [id])
   status               ParentOrderStatus @default(PENDING)
@@ -356,6 +384,8 @@ model ParentOrder {
   currency             Currency          @default(CDF)
   
   totalItemsCdf        Decimal           @default(0.00)
+  vatRatePercent       Decimal           @default(0.00) @db.Decimal(5, 2)
+  vatAmountCdf         Decimal           @default(0.00) @db.Decimal(14, 2)
   totalItemsUsd        Decimal           @default(0.00)
   deliveryFeeCdf       Decimal           @default(0.00)
   deliveryFeeUsd       Decimal           @default(0.00)
@@ -377,6 +407,7 @@ model ParentOrder {
   subOrders            SubOrder[]
   payments             PaymentTransaction[]
 
+  @@unique([buyerId, idempotencyKey])
   @@map("parent_orders")
 }
 
@@ -390,8 +421,10 @@ model SubOrder {
   status              SubOrderStatus   @default(PENDING)
   
   subtotalCdf         Decimal          @default(0.00)
+  vatAmountCdf        Decimal          @default(0.00) @db.Decimal(14, 2)
+  totalAmountCdf      Decimal          @default(0.00) @db.Decimal(14, 2)
   subtotalUsd         Decimal          @default(0.00)
-  commissionRate      Decimal          @default(5.00) // Taux de commission AgroConnect (ex: 5%)
+  commissionRate      Decimal          @default(0.00) // Snapshot du taux appliqué à cette sous-commande
   commissionAmountCdf Decimal          @default(0.00)
   commissionAmountUsd Decimal          @default(0.00)
   payoutAmountCdf     Decimal          @default(0.00) // Part nette due au vendeur
@@ -447,6 +480,103 @@ model PaymentTransaction {
   @@map("payment_transactions")
 }
 
+model PlatformPayment {
+  id                    String                @id @default(uuid())
+  purpose               PlatformPaymentPurpose
+  reference             String                @unique
+  idempotencyKey        String                @unique
+  sellerId              String?
+  parentOrderId         String?
+  subOrderId            String?
+  offerId               String?
+  promotionPackageId    String?
+  promotionPackageName  String?
+  promotionDurationDays Int?
+  amountCdf             Decimal
+  provider              PaymentProviderType
+  currency              Currency              @default(CDF)
+  payerPhone            String
+  recipientPhone        String?
+  subMerchantCode       String?
+  providerTransactionId String?               @unique
+  status                PaymentStatus         @default(PENDING)
+  payoutStatus          PlatformPayoutStatus?
+  payoutReference       String?               @unique
+  payoutProviderTransactionId String?         @unique
+  payoutVerifiedAt      DateTime?
+  verifiedAt            DateTime?
+  rawResponse           Json?
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+
+  @@index([sellerId, purpose, status])
+  @@index([parentOrderId])
+  @@index([subOrderId])
+  @@map("platform_payments")
+}
+
+model PlatformSettings {
+  id                       String   @id @default("singleton")
+  receivingPhoneNumber     String?
+  goFreshPaySubMerchantCode String?  @unique
+  goFreshPaySubMerchantPhone String?
+  monthlySubscriptionCdf   Decimal  @default(500.00)
+  commissionRatePercent    Decimal  @default(10.00) @db.Decimal(5, 2)
+  updatedByUserId          String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@map("platform_settings")
+}
+
+model SellerSubscription {
+  id                String        @id @default(uuid())
+  sellerId          String
+  seller            SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  platformPaymentId String        @unique
+  amountCdf         Decimal
+  startsAt          DateTime
+  expiresAt         DateTime
+  createdAt         DateTime      @default(now())
+
+  @@index([sellerId, expiresAt])
+  @@map("seller_subscriptions")
+}
+
+model PromotionPackage {
+  id           String           @id @default(uuid())
+  name         String
+  durationDays Int
+  priceCdf     Decimal
+  isActive     Boolean          @default(true)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  promotions   OfferPromotion[]
+
+  @@map("promotion_packages")
+}
+
+model OfferPromotion {
+  id                  String           @id @default(uuid())
+  offerId             String
+  offer               Offer            @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  sellerId            String
+  seller              SellerProfile    @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  packageId           String
+  package             PromotionPackage @relation(fields: [packageId], references: [id])
+  platformPaymentId   String           @unique
+  packageNameSnapshot String
+  amountCdf           Decimal
+  durationDays        Int
+  startsAt            DateTime
+  expiresAt           DateTime
+  createdAt           DateTime         @default(now())
+
+  @@index([offerId, expiresAt])
+  @@map("offer_promotions")
+}
+
 model Delivery {
   id                  String               @id @default(uuid())
   subOrderId          String               @unique
@@ -463,6 +593,13 @@ model Delivery {
   dropoffAddress      String
   estimatedDeliveryAt DateTime?
   deliveredAt         DateTime?
+  collectionMethod    ManualCollectionMethod?
+  collectedAmountCdf  Decimal?             @db.Decimal(14, 2)
+  collectionReference String?
+  collectedAt         DateTime?
+  platformDepositAmountCdf Decimal?         @db.Decimal(14, 2)
+  platformDepositReceivedAt DateTime?
+  platformDepositReceivedByUserId String?              @db.Uuid
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
 
