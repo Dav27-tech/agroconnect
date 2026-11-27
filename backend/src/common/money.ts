@@ -8,18 +8,12 @@
 
 import { SupportedCurrency } from '../config/drc.js';
 
-// Facteur d'échelle : 100 (ex: 1.50 USD = 150 centimes)
+// Facteur d'échelle : 100 (deux décimales).
 export const SCALE = 100n;
 
 export interface MoneyValue {
   scaledAmount: bigint; // Montant multiplié par 100
   currency: SupportedCurrency;
-}
-
-export interface DualCurrencyPrice {
-  amountCdf: number; // En CDF entier
-  amountUsd: number; // En USD avec 2 décimales
-  exchangeRateUsed: number; // Taux 1 USD = X CDF
 }
 
 export class Money {
@@ -79,15 +73,18 @@ export class Money {
   }
 
   /**
-   * Calcule le pourcentage de commission avec précision
-   * @param scaledAmount Montant total
-   * @param percent Pourcentage (ex: 5.0 pour 5%)
+   * Calcule un pourcentage avec précision (ex: 5.0 pour 5%)
    */
   public static calculateCommission(scaledAmount: bigint, percent: number): bigint {
+    return this.calculatePercentage(scaledAmount, percent);
+  }
+
+  /**
+   * Calcule un pourcentage sur un montant mis à l'échelle
+   */
+  public static calculatePercentage(scaledAmount: bigint, percent: number): bigint {
     const scaledPercent = this.toScaled(percent); // 5.00 -> 500n
-    // (Amount * 500) / 10000
-    const basisPoints = scaledPercent;
-    const product = scaledAmount * basisPoints;
+    const product = scaledAmount * scaledPercent;
     const divisor = 10000n;
     const halfDivisor = divisor / 2n;
     const remainder = product % divisor;
@@ -99,34 +96,10 @@ export class Money {
   }
 
   /**
-   * Convertit un montant USD en CDF selon un taux de change donné
-   * Taux : 1 USD = X CDF (ex: 2850)
-   */
-  public static convertUsdToCdf(scaledUsd: bigint, exchangeRate: number): bigint {
-    const scaledRate = this.toScaled(exchangeRate);
-    const product = scaledUsd * scaledRate;
-    return product / SCALE;
-  }
-
-  /**
-   * Convertit un montant CDF en USD selon un taux de change donné
-   */
-  public static convertCdfToUsd(scaledCdf: bigint, exchangeRate: number): bigint {
-    if (exchangeRate <= 0) {
-      throw new Error('Le taux de change doit être strictement supérieur à zéro.');
-    }
-    const scaledRate = this.toScaled(exchangeRate);
-    return (scaledCdf * SCALE) / scaledRate;
-  }
-
-  /**
    * Formate un montant pour affichage en français
    */
   public static format(amount: number, currency: SupportedCurrency): string {
-    if (currency === 'CDF') {
-      return `${Math.round(amount).toLocaleString('fr-FR')} FC`;
-    }
-    return `${amount.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $`;
+    return `${Math.round(amount).toLocaleString('fr-FR')} FC`;
   }
 }
 
