@@ -100,7 +100,9 @@ export default function CheckoutPage() {
     );
   }
 
-  const totalAmountCdf = calculation?.totals.totalCdf;
+  const subtotalCdf = calculation?.totals.totalCdf;
+  const vatAmountCdf = calculation?.totals.vatAmountCdf;
+  const totalAmountCdf = calculation?.totals.totalWithVatCdf;
   const totalCdf = formatCdfPrice(totalAmountCdf ?? 0);
   const canSubmitOrder = !isLoadingCalculation
     && calculation !== null
@@ -190,7 +192,17 @@ export default function CheckoutPage() {
                 <span className="font-bold text-stone-900">{confirmedOrder.orderNumber}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-stone-500">Total de la commande :</span>
+                <span className="text-stone-500">Sous-total des articles :</span>
+                <span className="font-bold text-stone-900">{formatCdfPrice(confirmedOrder.totalItemsCdf)}</span>
+              </div>
+              {confirmedOrder.vatAmountCdf > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-stone-500">TVA ({confirmedOrder.vatRatePercent} %) :</span>
+                  <span className="font-bold text-stone-900">{formatCdfPrice(confirmedOrder.vatAmountCdf)}</span>
+                </div>
+              )}
+              <div className="flex justify-between border-t border-stone-200 pt-2">
+                <span className="text-stone-500">Total à payer au livreur :</span>
                 <span className="font-black text-stone-900">{formatCdfPrice(confirmedOrder.totalAmountCdf)}</span>
               </div>
               <div className="flex justify-between">
@@ -223,9 +235,9 @@ export default function CheckoutPage() {
                     </div>
 
                     <div className="flex flex-col items-start gap-2 sm:items-end">
-                      <span className="text-xs font-bold text-stone-900">{formatCdfPrice(sub.subtotalCdf)}</span>
+                      <span className="text-xs font-bold text-stone-900">{formatCdfPrice(sub.totalAmountCdf)}</span>
                       <span className="rounded-full bg-sky-50 px-2.5 py-1 text-[10px] font-bold text-sky-900">
-                        À remettre au livreur
+                        À remettre au livreur, TVA incluse
                       </span>
                     </div>
                   </div>
@@ -339,7 +351,7 @@ export default function CheckoutPage() {
                 </h3>
                 <p className="text-xs leading-relaxed text-stone-600">
                   La commande est payable en Francs Congolais (CDF), directement au livreur lors de la remise.
-                  Chaque sous-commande est réglée séparément.
+                  Chaque sous-commande est réglée séparément. La TVA de {calculation?.vatRatePercent ?? 16} % est ajoutée au sous-total des articles.
                 </p>
               </div>
             </div>
@@ -367,8 +379,22 @@ export default function CheckoutPage() {
                     </span>
                   </div>
 
+                  <div className="flex justify-between text-stone-600">
+                    <span>Sous-total des articles :</span>
+                    <span className="font-bold text-stone-900">
+                      {subtotalCdf === undefined ? '—' : formatCdfPrice(subtotalCdf)}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between text-stone-600">
+                    <span>TVA ({calculation?.vatRatePercent ?? 16} %) :</span>
+                    <span className="font-bold text-stone-900">
+                      {vatAmountCdf === undefined ? '—' : formatCdfPrice(vatAmountCdf)}
+                    </span>
+                  </div>
+
                   <div className="pt-4 border-t border-stone-100 flex items-baseline justify-between">
-                    <span className="text-sm font-black text-stone-900">Total de la commande :</span>
+                    <span className="text-sm font-black text-stone-900">Total à payer :</span>
                     <p className="text-xl font-black text-emerald-900">
                       {calculation ? totalCdf : isLoadingCalculation ? 'Calcul…' : 'Indisponible'}
                     </p>
