@@ -1,7 +1,7 @@
-import { SupportedCurrency, DRC_EXCHANGE_RATE, DRC_PROVINCES } from '../config/drc.js';
+import { SupportedCurrency, DRC_PROVINCES } from '../config/drc.js';
 import { Money } from '../common/money.js';
 
-export type UserRole = 'BUYER' | 'SELLER' | 'DELIVERY_PROVIDER' | 'DELIVERY_PERSON' | 'ADMIN';
+export type UserRole = 'BUYER' | 'SELLER' | 'DELIVERY_PROVIDER' | 'DELIVERY_PERSON' | 'ADMIN' | 'SUPER_ADMIN';
 export type SellerType = 'FARMER' | 'RESELLER' | 'SUPPLIER';
 export type VerificationStatus = 'PENDING' | 'UNDER_REVIEW' | 'VERIFIED' | 'REJECTED';
 export type SaleType = 'RETAIL' | 'WHOLESALE';
@@ -16,7 +16,6 @@ export type StockMovementType =
 
 export type ParentOrderStatus = 'PENDING' | 'CONFIRMED' | 'PROCESSING' | 'PARTIALLY_DELIVERED' | 'DELIVERED' | 'CANCELLED';
 export type SubOrderStatus = 'PENDING' | 'CONFIRMED' | 'PREPARING' | 'READY_FOR_PICKUP' | 'IN_DELIVERY' | 'DELIVERED' | 'REJECTED' | 'CANCELLED';
-export type PaymentStatus = 'PENDING' | 'PROCESSING' | 'SUCCEEDED' | 'FAILED' | 'REFUNDED';
 export type DeliveryStatus = 'PENDING' | 'ASSIGNED' | 'PICKED_UP' | 'IN_TRANSIT' | 'ARRIVED' | 'DELIVERED' | 'FAILED' | 'CANCELLED';
 export type PayoutStatus = 'PENDING' | 'APPROVED' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
 
@@ -26,7 +25,7 @@ export interface UserRecord {
   email?: string;
   passwordHash: string;
   fullName: string;
-  roles: UserRole[]; // Support multi-rôles natif
+  roles: UserRole[];
   isActive: boolean;
   preferredLang: string;
   createdAt: Date;
@@ -43,7 +42,7 @@ export interface SellerProfileRecord {
   city: string;
   address?: string;
   verificationStatus: VerificationStatus;
-  commissionRate: number; // ex: 5.0%
+  commissionRate: number; // 0: AgroConnect ne prélève pas de commission
   createdAt: Date;
   updatedAt: Date;
 }
@@ -94,7 +93,7 @@ export interface OfferRecord {
   productId: string;
   productName: string;
   categoryName: string;
-  // Stock unique et partagé entre la vente au détail et en gros
+  // Stock unique partagé quel que soit le tarif appliqué
   stockQuantity: number;
   unit: string;
   isAvailable: boolean;
@@ -164,9 +163,10 @@ export interface ParentOrderRecord {
   orderNumber: string;
   buyerId: string;
   status: ParentOrderStatus;
-  exchangeRateSnapshot: number; // Figé à la seconde précise de création
   currency: SupportedCurrency;
   totalItemsCdf: number;
+  vatRatePercent: number;
+  vatAmountCdf: number;
   totalItemsUsd: number;
   deliveryFeeCdf: number;
   deliveryFeeUsd: number;
@@ -191,6 +191,8 @@ export interface SubOrderRecord {
   sellerName: string;
   status: SubOrderStatus;
   subtotalCdf: number;
+  vatAmountCdf: number;
+  totalAmountCdf: number;
   subtotalUsd: number;
   commissionRate: number; // %
   commissionAmountCdf: number;
@@ -215,22 +217,6 @@ export interface OrderItemRecord {
   subtotalCdf: number;
   subtotalUsd: number;
   createdAt: Date;
-}
-
-export interface PaymentRecord {
-  id: string;
-  parentOrderId: string;
-  provider: string;
-  providerTransactionId?: string;
-  idempotencyKey: string;
-  amountCdf: number;
-  amountUsd: number;
-  currency: SupportedCurrency;
-  status: PaymentStatus;
-  verifiedAt?: Date;
-  rawResponse?: string;
-  createdAt: Date;
-  updatedAt: Date;
 }
 
 export interface DeliveryRecord {
@@ -261,20 +247,6 @@ export interface DeliveryStatusHistoryRecord {
   createdAt: Date;
 }
 
-export interface ExchangeRateConfigRecord {
-  id: string;
-  baseCurrency: SupportedCurrency;
-  targetCurrency: SupportedCurrency;
-  rate: number;
-  isActive: boolean;
-  source: string;
-  effectiveFrom: Date;
-  configuredByUserId?: string;
-  configuredByName?: string;
-  notes?: string;
-  createdAt: Date;
-}
-
 export interface FinancialRecordItem {
   id: string;
   subOrderId: string;
@@ -287,7 +259,6 @@ export interface FinancialRecordItem {
   commissionAmountUsd: number;
   sellerEarningsCdf: number;
   sellerEarningsUsd: number;
-  exchangeRateApplied: number;
   status: PayoutStatus;
   recordedAt: Date;
   payoutRef?: string;
@@ -309,6 +280,7 @@ export interface NotificationRecord {
  * Implémente l'ensemble des règles métier et assure l'intégrité relationnelle
  */
 export class AgroStore {
+  public static commissionRatePercent = 10;
   public static users = new Map<string, UserRecord>();
   public static sellerProfiles = new Map<string, SellerProfileRecord>();
   public static deliveryProfiles = new Map<string, DeliveryProfileRecord>();
@@ -320,12 +292,11 @@ export class AgroStore {
   public static carts = new Map<string, CartRecord>();
   public static cartItems = new Map<string, CartItemRecord>();
   public static parentOrders = new Map<string, ParentOrderRecord>();
+  public static orderIdempotency = new Map<string, { orderId: string; requestHash: string }>();
   public static subOrders = new Map<string, SubOrderRecord>();
   public static orderItems: OrderItemRecord[] = [];
-  public static payments = new Map<string, PaymentRecord>();
   public static deliveries = new Map<string, DeliveryRecord>();
   public static deliveryHistories: DeliveryStatusHistoryRecord[] = [];
-  public static exchangeRates: ExchangeRateConfigRecord[] = [];
   public static financialRecords = new Map<string, FinancialRecordItem>();
   public static notifications: NotificationRecord[] = [];
 
@@ -340,21 +311,7 @@ export class AgroStore {
 
     const now = new Date();
 
-    // 1. Taux de change initial configurable RDC
-    this.exchangeRates.push({
-      id: 'rate-cfg-2026',
-      baseCurrency: 'USD',
-      targetCurrency: 'CDF',
-      rate: DRC_EXCHANGE_RATE.defaultRate, // 2850 CDF
-      isActive: true,
-      source: 'MANUAL_CONFIG',
-      effectiveFrom: now,
-      configuredByName: 'Administrateur National AgroConnect RDC',
-      notes: 'Taux indicatif officiel de référence pour les transactions agricoles en RDC',
-      createdAt: now,
-    });
-
-    // 2. Filières & Catégories Agricoles Congolaises
+    // Filières & Catégories Agricoles Congolaises
     const seedCategories: CategoryRecord[] = [
       {
         id: 'cat-tubercules',
@@ -484,7 +441,7 @@ export class AgroStore {
     ];
     seedProducts.forEach((p) => this.products.set(p.id, p));
 
-    // 4. Utilisateurs avec Support Multi-Rôles
+    // Utilisateurs de démonstration avec un rôle chacun
     const seedUsers: UserRecord[] = [
       {
         id: 'usr-farmer-jean-pierre',
@@ -492,7 +449,7 @@ export class AgroStore {
         email: 'coopak.kikwit@agroconnect.cd',
         passwordHash: 'scrypt:demo-salt:demo-hash',
         fullName: 'Papa Jean-Pierre Kabamba',
-        roles: ['SELLER', 'BUYER'], // Double rôle : producteur vendeur et acheteur d'intrants
+        roles: ['SELLER'],
         isActive: true,
         preferredLang: 'fr',
         createdAt: now,
@@ -504,7 +461,7 @@ export class AgroStore {
         email: 'agrodistrib.kin@agroconnect.cd',
         passwordHash: 'scrypt:demo-salt:demo-hash',
         fullName: 'Maman Marie Mbuyi',
-        roles: ['SELLER', 'BUYER'], // Double rôle : revendeur urbain et acheteur en gros
+        roles: ['SELLER'],
         isActive: true,
         preferredLang: 'fr',
         createdAt: now,
@@ -527,20 +484,8 @@ export class AgroStore {
         phoneNumber: '+243890001122',
         email: 'patrick.mwamba@gmail.cd',
         passwordHash: 'scrypt:demo-salt:demo-hash',
-        fullName: 'Patrick Mwamba (Grossiste Kinshasa)',
+        fullName: 'Patrick Mwamba (Acheteur)',
         roles: ['BUYER'],
-        isActive: true,
-        preferredLang: 'fr',
-        createdAt: now,
-        updatedAt: now,
-      },
-      {
-        id: 'usr-delivery-express',
-        phoneNumber: '+243991122334',
-        email: 'transcongo.livraison@agroconnect.cd',
-        passwordHash: 'scrypt:demo-salt:demo-hash',
-        fullName: 'Célestin Ilunga (TransCongo Express)',
-        roles: ['DELIVERY_PERSON', 'DELIVERY_PROVIDER'],
         isActive: true,
         preferredLang: 'fr',
         createdAt: now,
@@ -573,7 +518,7 @@ export class AgroStore {
         city: 'Kikwit',
         address: 'Route Nationale 1, Quartier Commercial',
         verificationStatus: 'VERIFIED',
-        commissionRate: 5.0,
+        commissionRate: 10,
         createdAt: now,
         updatedAt: now,
       },
@@ -587,7 +532,7 @@ export class AgroStore {
         city: 'Kinshasa',
         address: 'Marché de la Liberté, Pavillon Agricole 4, Masina',
         verificationStatus: 'VERIFIED',
-        commissionRate: 5.0,
+        commissionRate: 10,
         createdAt: now,
         updatedAt: now,
       },
@@ -601,7 +546,7 @@ export class AgroStore {
         city: 'Lubumbashi',
         address: 'Avenue Kapenda, Proche Gare SNCC',
         verificationStatus: 'VERIFIED',
-        commissionRate: 5.0,
+        commissionRate: 10,
         createdAt: now,
         updatedAt: now,
       },
@@ -689,7 +634,7 @@ export class AgroStore {
         originCity: 'Kikwit',
         qualityGrade: 'Extra Frais',
         imageUrl: 'https://images.unsplash.com/photo-1590779033100-9f60a05a013d?auto=format&fit=crop&q=80&w=800',
-        servicesOffered: ['Tri calibré au champ', 'Paiement mobile sécurisé'],
+        servicesOffered: ['Tri calibré au champ', 'Livraison organisée avec AgroConnect'],
         createdAt: now,
         updatedAt: now,
       },
@@ -815,7 +760,6 @@ export class AgroStore {
     });
 
     // 9. Commande Historique Démonstrative Multi-Vendeurs
-    const demoRate = 2850;
     const parentOrderId = 'ord-demo-202611-001';
     const orderNumber = 'AGC-ORD-202611-1001';
 
@@ -824,9 +768,10 @@ export class AgroStore {
       orderNumber,
       buyerId: 'usr-buyer-patrick',
       status: 'CONFIRMED',
-      exchangeRateSnapshot: demoRate,
       currency: 'CDF',
       totalItemsCdf: 1970000,
+      vatRatePercent: 0,
+      vatAmountCdf: 0,
       totalItemsUsd: 691.23,
       deliveryFeeCdf: 30000,
       deliveryFeeUsd: 10.53,
@@ -853,12 +798,14 @@ export class AgroStore {
       sellerName: 'Coopérative Agricole du Kwilu (COOPAK)',
       status: 'PREPARING',
       subtotalCdf: 1760000,
+      vatAmountCdf: 0,
+      totalAmountCdf: 1760000,
       subtotalUsd: 617.54,
-      commissionRate: 5.0,
-      commissionAmountCdf: 88000,
-      commissionAmountUsd: 30.88,
-      payoutAmountCdf: 1672000,
-      payoutAmountUsd: 586.67,
+      commissionRate: 10,
+      commissionAmountCdf: 176000,
+      commissionAmountUsd: 0,
+      payoutAmountCdf: 1584000,
+      payoutAmountUsd: 617.54,
       payoutStatus: 'PENDING',
       deliveryId: 'del-demo-001-A',
       createdAt: now,
@@ -893,7 +840,6 @@ export class AgroStore {
       commissionAmountUsd: subOrder1.commissionAmountUsd,
       sellerEarningsCdf: subOrder1.payoutAmountCdf,
       sellerEarningsUsd: subOrder1.payoutAmountUsd,
-      exchangeRateApplied: demoRate,
       status: 'PENDING',
       recordedAt: now,
     });
@@ -962,12 +908,14 @@ export class AgroStore {
       sellerName: 'AgroDistrib Kinshasa Express',
       status: 'PREPARING',
       subtotalCdf: 210000,
+      vatAmountCdf: 0,
+      totalAmountCdf: 210000,
       subtotalUsd: 73.68,
-      commissionRate: 5.0,
-      commissionAmountCdf: 10500,
-      commissionAmountUsd: 3.68,
-      payoutAmountCdf: 199500,
-      payoutAmountUsd: 70.0,
+      commissionRate: 10,
+      commissionAmountCdf: 21000,
+      commissionAmountUsd: 0,
+      payoutAmountCdf: 189000,
+      payoutAmountUsd: 73.68,
       payoutStatus: 'PENDING',
       deliveryId: 'del-demo-001-B',
       createdAt: now,
@@ -1001,27 +949,10 @@ export class AgroStore {
       commissionAmountUsd: subOrder2.commissionAmountUsd,
       sellerEarningsCdf: subOrder2.payoutAmountCdf,
       sellerEarningsUsd: subOrder2.payoutAmountUsd,
-      exchangeRateApplied: demoRate,
       status: 'PENDING',
       recordedAt: now,
     });
 
-    // Paiement centralisé de la commande parent
-    this.payments.set(parentOrderId, {
-      id: 'pay-tx-202611-001',
-      parentOrderId,
-      provider: 'ORANGE_MONEY',
-      providerTransactionId: 'OM-RDC-9948210384',
-      idempotencyKey: 'idemp-ord-demo-001-om',
-      amountCdf: parentOrder.totalAmountCdf,
-      amountUsd: parentOrder.totalAmountUsd,
-      currency: 'CDF',
-      status: 'SUCCEEDED',
-      verifiedAt: now,
-      rawResponse: JSON.stringify({ code: '200', message: 'Transaction Orange Money RDC validée avec succès' }),
-      createdAt: now,
-      updatedAt: now,
-    });
   }
 
   // --------------------------------------------------------------------------
@@ -1088,25 +1019,5 @@ export class AgroStore {
     return { success: true, offer, movement };
   }
 
-  /**
-   * Calcule le taux de change actif USD -> CDF
-   */
-  public static getActiveExchangeRate(): ExchangeRateConfigRecord {
-    const active = this.exchangeRates.find((r) => r.isActive);
-    if (active) return active;
-    return {
-      id: 'default-rate',
-      baseCurrency: 'USD',
-      targetCurrency: 'CDF',
-      rate: DRC_EXCHANGE_RATE.defaultRate,
-      isActive: true,
-      source: 'FALLBACK',
-      effectiveFrom: new Date(),
-      createdAt: new Date(),
-    };
-  }
 }
-
-// Initialise le référentiel métier dès le chargement
-AgroStore.seed();
 
