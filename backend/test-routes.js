@@ -107,6 +107,12 @@ async function testApp() {
   if (cartRes.statusCode !== 200 || cartRes.body.data.totals.totalCdf <= 0) {
     throw new Error(`Le calcul du panier échoue pour une offre PostgreSQL (${cartRes.statusCode})`);
   }
+  if (
+    cartRes.body.data.vatRatePercent !== 16 ||
+    Math.abs(cartRes.body.data.totals.totalWithVatCdf - cartRes.body.data.totals.totalCdf - cartRes.body.data.totals.vatAmountCdf) >= 0.01
+  ) {
+    throw new Error('Le calcul du panier doit séparer la TVA à 16 % du total à payer');
+  }
   console.log('✅ 5. POST /api/v1/cart/calculate -> Status:', cartRes.statusCode, '| Vendeurs distincts:', cartRes.body.data.distinctSellersCount, '| Total CDF:', cartRes.body.data.totals.totalCdf, 'FC');
 
   // 6. Test Create Order (RDC Province, CDF, Suborders)
