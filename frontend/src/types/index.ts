@@ -230,6 +230,8 @@ export interface CartSellerGroup {
   sellerName: string;
   items: CartCalculationItem[];
   sellerSubtotalCdf: number;
+  vatAmountCdf: number;
+  totalWithVatCdf: number;
 }
 
 export interface CartCalculationResult {
@@ -237,8 +239,11 @@ export interface CartCalculationResult {
   distinctSellersCount: number;
   totalItemsCount: number;
   hasStockShortage: boolean;
+  vatRatePercent: number;
   totals: {
     totalCdf: number;
+    vatAmountCdf: number;
+    totalWithVatCdf: number;
   };
 }
 
@@ -261,6 +266,8 @@ export interface SubOrder {
   sellerName: string;
   status: SubOrderStatus;
   subtotalCdf: number;
+  vatAmountCdf: number;
+  totalAmountCdf: number;
   commissionRate: number;
   commissionAmountCdf: number;
   payoutAmountCdf: number;
@@ -282,6 +289,8 @@ export interface ParentOrder {
   status: ParentOrderStatus;
   currency: 'CDF';
   totalItemsCdf: number;
+  vatRatePercent: number;
+  vatAmountCdf: number;
   deliveryFeeCdf: number;
   totalAmountCdf: number;
   deliveryProvince: string;
