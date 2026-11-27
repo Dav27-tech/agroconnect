@@ -59,7 +59,7 @@ function OrderReceipt({ order, onPrint }: { order: ParentOrder; onPrint: () => v
       <header className="flex flex-col gap-4 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
         <div>
           <p className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-800">AgroConnect RDC</p>
-          <h2 className="mt-1 text-xl font-black tracking-tight text-stone-950">Reçu de commande</h2>
+          <h2 className="mt-1 text-xl font-black tracking-tight text-stone-950">Facture / reçu de commande</h2>
         </div>
         <button
           type="button"
@@ -139,6 +139,12 @@ function OrderReceipt({ order, onPrint }: { order: ParentOrder; onPrint: () => v
             <span>Articles</span>
             <span className="font-medium tabular-nums text-stone-900">{formatCdfPrice(order.totalItemsCdf)}</span>
           </div>
+          {order.vatAmountCdf > 0 && (
+            <div className="flex justify-between gap-4 py-1 text-xs text-stone-600">
+              <span>TVA ({order.vatRatePercent} %)</span>
+              <span className="font-medium tabular-nums text-stone-900">{formatCdfPrice(order.vatAmountCdf)}</span>
+            </div>
+          )}
           <div className="flex justify-between gap-4 py-1 text-xs text-stone-600">
             <span>Livraison</span>
             <span className="font-medium tabular-nums text-stone-900">{formatCdfPrice(order.deliveryFeeCdf)}</span>
@@ -150,7 +156,7 @@ function OrderReceipt({ order, onPrint }: { order: ParentOrder; onPrint: () => v
         </section>
 
         <p className="border-t border-stone-100 pt-3 text-[10px] leading-5 text-stone-500">
-          Paiement en CDF auprès du livreur à la livraison. AgroConnect n’encaisse pas de paiement en ligne; ce reçu confirme la commande, pas le paiement.
+          Le total inclut la TVA affichée ci-dessus. Paiement en CDF auprès du livreur à la livraison. AgroConnect n’encaisse pas de paiement en ligne; ce document confirme la commande, pas le paiement.
         </p>
       </div>
     </article>
