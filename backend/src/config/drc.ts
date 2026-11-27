@@ -73,9 +73,11 @@ export const DRC_MAJOR_CITIES: Record<DRCProvince, string[]> = {
   'Tshuapa': ['Boende', 'Bokungu', 'Ikela', 'Monkoto'],
 };
 
-// Devises autorisées
-export const SUPPORTED_CURRENCIES = ['CDF', 'USD'] as const;
+// La plateforme utilise uniquement le franc congolais.
+export const SUPPORTED_CURRENCIES = ['CDF'] as const;
 export type SupportedCurrency = typeof SUPPORTED_CURRENCIES[number];
+
+export const VAT_RATE_PERCENT = 16;
 
 // Opérateurs Mobile Money en RDC
 export const DRC_MOBILE_MONEY_PROVIDERS = [
@@ -86,12 +88,5 @@ export const DRC_MOBILE_MONEY_PROVIDERS = [
 ] as const;
 
 export type MobileMoneyProviderId = typeof DRC_MOBILE_MONEY_PROVIDERS[number]['id'];
-
-// Configuration du taux de change initial de référence
-export const DRC_EXCHANGE_RATE = {
-  defaultRate: 2850,
-  baseCurrency: 'USD' as const,
-  targetCurrency: 'CDF' as const,
-};
 
 
