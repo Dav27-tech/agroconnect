@@ -4,7 +4,7 @@ import { optionalAuth } from '../../common/middleware/auth.middleware.js';
 
 const router = Router();
 
-router.post('/calculate', CartController.calculateCart);
+router.post('/calculate', optionalAuth, CartController.calculateCart);
 router.get('/', optionalAuth, CartController.getCart);
 router.post('/item', optionalAuth, CartController.addItem);
 
