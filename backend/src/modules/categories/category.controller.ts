@@ -1,42 +1,48 @@
 import { Request, Response } from 'express';
 import { sendSuccess, sendError } from '../../common/response.js';
-import { AgroStore } from '../../database/store.js';
+import { dbManager } from '../../database/client.js';
 
 export class CategoryController {
   public static async listCategories(_req: Request, res: Response): Promise<Response> {
-    const categories = Array.from(AgroStore.categories.values()).map((cat) => {
-      // Calculer le nombre de produits et d'offres réelles
-      const catProducts = Array.from(AgroStore.products.values()).filter((p) => p.categoryId === cat.id);
-      const productIds = new Set(catProducts.map((p) => p.id));
-      const activeOffers = Array.from(AgroStore.offers.values()).filter(
-        (o) => productIds.has(o.productId) && o.isAvailable
-      );
+    const result = await dbManager.query(
+      `SELECT c."id", c."name", c."slug", COALESCE(c."description", '') AS "description",
+              COALESCE(c."icon", '') AS "icon",
+              COUNT(DISTINCT p."id")::int AS "productsCount",
+              COUNT(DISTINCT o."id") FILTER (WHERE o."isAvailable" AND u."id" IS NOT NULL)::int AS "offersCount",
+              (COUNT(DISTINCT p."id") + COUNT(DISTINCT o."id") FILTER (WHERE o."isAvailable" AND u."id" IS NOT NULL))::int AS "itemCount"
+       FROM "categories" c
+       LEFT JOIN "products" p ON p."categoryId" = c."id"
+       LEFT JOIN "offers" o ON o."productId" = p."id"
+       LEFT JOIN "seller_profiles" s ON s."id" = o."sellerId"
+       LEFT JOIN "users" u ON u."id" = s."userId" AND u."isActive" = true
+       GROUP BY c."id"
+       ORDER BY c."name"`
+    );
 
-      return {
-        ...cat,
-        productsCount: catProducts.length,
-        offersCount: activeOffers.length,
-        itemCount: catProducts.length + activeOffers.length,
-      };
-    });
-
-    return sendSuccess(res, categories, 'Liste des catégories agricoles récupérée avec succès');
+    return sendSuccess(res, result.rows, 'Liste des catégories agricoles récupérée avec succès');
   }
 
   public static async getCategoryBySlug(req: Request, res: Response): Promise<Response> {
     const rawSlug = req.params.slug;
     const slug = (Array.isArray(rawSlug) ? rawSlug[0] : rawSlug) || '';
-    const category = Array.from(AgroStore.categories.values()).find((c) => c.slug === slug || c.id === slug);
+    const categoryResult = await dbManager.query(
+      'SELECT "id", "name", "slug", "description", "icon" FROM "categories" WHERE "slug" = $1 OR "id"::text = $1 LIMIT 1',
+      [slug]
+    );
+    const category = categoryResult.rows[0];
 
     if (!category) {
       return sendError(res, `Catégorie agricole '${slug}' introuvable`, 404, 'CATEGORY_NOT_FOUND');
     }
 
-    const catProducts = Array.from(AgroStore.products.values()).filter((p) => p.categoryId === category.id);
+    const products = await dbManager.query(
+      'SELECT "id", "name", "slug", "description", "standardUnit", "scientificName", "imageUrl", "categoryId" FROM "products" WHERE "categoryId" = $1 ORDER BY "name"',
+      [category.id]
+    );
 
     return sendSuccess(res, {
       ...category,
-      products: catProducts,
+      products: products.rows,
     });
   }
 }
