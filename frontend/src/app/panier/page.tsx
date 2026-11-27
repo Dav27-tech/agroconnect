@@ -357,11 +357,23 @@ export default function CartPage() {
                   <dt>Vendeurs</dt>
                   <dd className="font-semibold text-stone-900">{sellerCount}</dd>
                 </div>
+                <div className="flex justify-between gap-4 text-stone-600">
+                  <dt>Sous-total des articles</dt>
+                  <dd className="font-semibold text-stone-900">
+                    {calculation ? formatCdfPrice(calculation.totals.totalCdf) : '—'}
+                  </dd>
+                </div>
+                <div className="flex justify-between gap-4 text-stone-600">
+                  <dt>TVA ({calculation?.vatRatePercent ?? 16} %)</dt>
+                  <dd className="font-semibold text-stone-900">
+                    {calculation ? formatCdfPrice(calculation.totals.vatAmountCdf) : '—'}
+                  </dd>
+                </div>
                 <div className="flex items-baseline justify-between gap-4 pt-1">
-                  <dt className="font-bold text-stone-900">Total de la commande</dt>
+                  <dt className="font-bold text-stone-900">Total à payer</dt>
                   <dd className="text-right text-lg font-black text-emerald-900">
                     {calculation
-                      ? formatCdfPrice(calculation.totals.totalCdf)
+                      ? formatCdfPrice(calculation.totals.totalWithVatCdf)
                       : isLoadingCalculation
                         ? 'Calcul…'
                         : '—'}
