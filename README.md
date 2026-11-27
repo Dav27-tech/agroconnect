@@ -6,7 +6,7 @@
 
 ## 🇨🇩 Vision du Projet
 
-**AgroConnect** connecte les agriculteurs vendeurs et les acheteurs à travers les 26 provinces de la RDC. La plateforme distingue trois rôles : administrateur, acheteur et vendeur-agriculteur. L'inscription acheteur/vendeur et la connexion utilisent une adresse e-mail obligatoire.
+**AgroConnect** connecte les agriculteurs vendeurs et les acheteurs à travers les 26 provinces de la RDC. La plateforme propose des espaces acheteur, vendeur-agriculteur, livreur, administrateur et super administrateur. L'inscription acheteur/vendeur et la connexion utilisent une adresse e-mail obligatoire.
 
 > [!IMPORTANT]
 > **Règle commerciale fondamentale :** AgroConnect est **strictement un intermédiaire technique et financier**. AgroConnect n'achète, ne possède, ne stocke ni ne revend aucun produit agricole. Chaque vendeur gère sa propre activité commerciale, ses stocks et ses prix.
@@ -23,14 +23,17 @@
 | **Monétaire & Calculs** | Arithmétique d'entiers à échelle fixe (`BigInt`), sans virgule flottante JS |
 | **Langue** | Interface et API intégralement en **Français** |
 | **Devise** | Franc Congolais uniquement (`CDF / FC`), sans taux de change |
+| **TVA** | 16 % ajoutés au sous-total des articles et affichés avant validation de la commande |
 
 ---
 
 ## État du Projet
 
-AgroConnect est actuellement un prototype destiné à valider les workflows métier. Les routes utilisent un store en mémoire et des données de démonstration ; le client Prisma et le schéma PostgreSQL ne sont pas connectés au runtime. Les données sont perdues au redémarrage. Le simulateur de paiement reste en attente et ne déclare jamais un paiement réussi.
+AgroConnect utilise PostgreSQL pour ses données métier. Les paiements en ligne ne sont pas traités sur la plateforme : le client règle le livreur, puis les opérations de collecte et de reversement sont suivies par l'administration.
 
-Ce dépôt n'est pas prêt pour la production. Les bloqueurs de lancement sont récapitulés dans [docs/DEVELOPMENT_GUIDE.md](docs/DEVELOPMENT_GUIDE.md) et [docs/DATABASE.md](docs/DATABASE.md).
+Les rôles de compte comprennent acheteur, vendeur-agriculteur, livreur, administrateur et super administrateur. Les acheteurs et vendeurs s'inscrivent publiquement avec une adresse e-mail. Les comptes administrateur créés par un super administrateur et les comptes livreur créés par un administrateur doivent remplacer leur mot de passe provisoire lors de leur première connexion. Tous les utilisateurs peuvent modifier leur mot de passe depuis leur compte.
+
+Ce dépôt n'est pas prêt pour la production. Avant de déployer, appliquer les migrations PostgreSQL et examiner la configuration de sécurité et d'exploitation de l'environnement.
 
 ## 🚀 Installation et Démarrage
 
@@ -50,6 +53,12 @@ Copiez `backend/.env.example` vers `backend/.env`. Sous PowerShell :
 
 ```powershell
 Copy-Item backend/.env.example backend/.env
+```
+
+Configurez `DATABASE_URL` pour PostgreSQL, puis appliquez les migrations avant de démarrer l'API :
+
+```bash
+npm run db:migrate --prefix backend
 ```
 
 ### Lancement
@@ -74,6 +83,12 @@ npm run build:frontend
 npm run lint --prefix frontend
 ```
 
+### Comptes et mots de passe
+
+- La connexion se fait avec l'adresse e-mail.
+- Un administrateur créé par un super administrateur ou un livreur créé par un administrateur doit changer son mot de passe provisoire après sa première connexion. L'accès aux routes protégées reste bloqué jusqu'à ce changement.
+- Tous les rôles peuvent changer leur mot de passe à tout moment depuis **Modifier le mot de passe** dans le menu du compte. Le mot de passe actuel est requis et le nouveau doit comporter au moins 10 caractères.
+
 ---
 
 ## 📁 Architecture du Dépôt
@@ -89,7 +104,7 @@ agroConnect/
 │   │   ├── database/         # Client & Gestionnaire Prisma
 │   │   ├── integrations/     # Frontières d'intégration (Paiement, SMS, Maps, etc.)
 │   │   └── modules/          # 15 Domaines métiers modulaires
-│   │       ├── auth/         # Inscription & Connexion sécurisée
+│   │       ├── auth/         # Inscription, connexion et changement sécurisé du mot de passe
 │   │       ├── users/        # Gestion profils & rôles
 │   │       ├── sellers/      # Profils vendeurs-agriculteurs
 │   │       ├── categories/   # Filières agricoles congolaises
@@ -99,7 +114,6 @@ agroConnect/
 │   │       ├── seller-services/# Conditionnement, tri, express
 │   │       ├── cart/         # Panier multi-vendeurs
 │   │       ├── orders/       # Commande parent + sous-commandes
-│   │       ├── payments/     # Vérification backend stricte
 │   │       ├── deliveries/   # Opérations logistiques internes (pas de suivi public)
 │   │       ├── notifications/# Notifications multi-canaux
 │   │       ├── finance/      # Commissions et reversements vendeurs
