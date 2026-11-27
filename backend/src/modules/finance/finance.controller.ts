@@ -1,163 +1,88 @@
 import { Request, Response } from 'express';
-import { sendSuccess, sendError } from '../../common/response.js';
-import { AgroStore } from '../../database/store.js';
-import { Money } from '../../common/money.js';
+import { sendError, sendSuccess } from '../../common/response.js';
+import { dbManager } from '../../database/client.js';
+
+interface FinanceSummaryRow {
+  recordsCount: string;
+  grossCdf: string;
+  commissionCdf: string;
+  sellerEarningsCdf: string;
+  platformReceivedCdf: string;
+  awaitingPlatformDepositCdf: string;
+  awaitingSellerConfirmationCdf: string;
+}
+
+function mapFinancialRecord(row: Record<string, unknown>) {
+  return Object.fromEntries(Object.entries(row).map(([key, value]) => [
+    key,
+    typeof value === 'string' && key.endsWith('Cdf') ? Number(value) : value,
+  ]));
+}
 
 export class FinanceController {
-  /**
-   * Synthèse financière globale pour l'administration AgroConnect
-   */
   public static async getPlatformSummary(_req: Request, res: Response): Promise<Response> {
-    const records = Array.from(AgroStore.financialRecords.values());
-    const activeRate = AgroStore.getActiveExchangeRate();
-
-    let totalGrossCdfScaled = 0n;
-    let totalGrossUsdScaled = 0n;
-    let totalCommissionsCdfScaled = 0n;
-    let totalCommissionsUsdScaled = 0n;
-    let totalSellerEarningsCdfScaled = 0n;
-    let totalSellerEarningsUsdScaled = 0n;
-
-    for (const record of records) {
-      totalGrossCdfScaled = Money.add(totalGrossCdfScaled, Money.toScaled(record.grossAmountCdf));
-      totalGrossUsdScaled = Money.add(totalGrossUsdScaled, Money.toScaled(record.grossAmountUsd));
-      totalCommissionsCdfScaled = Money.add(
-        totalCommissionsCdfScaled,
-        Money.toScaled(record.commissionAmountCdf)
-      );
-      totalCommissionsUsdScaled = Money.add(
-        totalCommissionsUsdScaled,
-        Money.toScaled(record.commissionAmountUsd)
-      );
-      totalSellerEarningsCdfScaled = Money.add(
-        totalSellerEarningsCdfScaled,
-        Money.toScaled(record.sellerEarningsCdf)
-      );
-      totalSellerEarningsUsdScaled = Money.add(
-        totalSellerEarningsUsdScaled,
-        Money.toScaled(record.sellerEarningsUsd)
-      );
-    }
-
+    const result = await dbManager.query<FinanceSummaryRow>(
+      `SELECT COUNT(fr."id")::text AS "recordsCount",
+              COALESCE(SUM(fr."grossAmountCdf"), 0)::text AS "grossCdf",
+              COALESCE(SUM(fr."commissionAmountCdf"), 0)::text AS "commissionCdf",
+              COALESCE(SUM(fr."sellerEarningsCdf"), 0)::text AS "sellerEarningsCdf",
+              COALESCE(SUM(d."platformDepositAmountCdf") FILTER (WHERE d."platformDepositReceivedAt" IS NOT NULL), 0)::text AS "platformReceivedCdf",
+              COALESCE(SUM(fr."sellerEarningsCdf") FILTER (WHERE d."platformDepositReceivedAt" IS NULL), 0)::text AS "awaitingPlatformDepositCdf",
+              COALESCE(SUM(fr."sellerEarningsCdf") FILTER (WHERE d."platformDepositReceivedAt" IS NOT NULL AND fr."status" <> 'COMPLETED'), 0)::text AS "awaitingSellerConfirmationCdf"
+       FROM "financial_records" fr
+       JOIN "sub_orders" so ON so."id" = fr."subOrderId"
+       LEFT JOIN "deliveries" d ON d."subOrderId" = so."id"`
+    );
+    const row = result.rows[0];
     return sendSuccess(res, {
-      totalRecords: records.length,
-      currentExchangeRate: activeRate.rate,
-      grossMarketplaceVolume: {
-        totalCdf: Money.fromScaled(totalGrossCdfScaled),
-        totalUsd: Money.fromScaled(totalGrossUsdScaled),
-      },
-      agroConnectCommissions: {
-        totalCdf: Money.fromScaled(totalCommissionsCdfScaled),
-        totalUsd: Money.fromScaled(totalCommissionsUsdScaled),
-        standardRatePercent: 5.0,
-      },
-      sellerPayoutObligations: {
-        totalCdf: Money.fromScaled(totalSellerEarningsCdfScaled),
-        totalUsd: Money.fromScaled(totalSellerEarningsUsdScaled),
-      },
-      strictIntermediaryRule:
-        'AgroConnect n\'achète, ne possède ni ne revend de produits. Les flux de commissions représentent uniquement la rémunération d\'intermédiation.',
-    });
+      totalRecords: Number(row.recordsCount),
+      grossMarketplaceVolumeCdf: Number(row.grossCdf),
+      agroConnectCommissionCdf: Number(row.commissionCdf),
+      sellerEarningsCdf: Number(row.sellerEarningsCdf),
+      platformReceivedCdf: Number(row.platformReceivedCdf),
+      awaitingPlatformDepositCdf: Number(row.awaitingPlatformDepositCdf),
+      awaitingSellerConfirmationCdf: Number(row.awaitingSellerConfirmationCdf),
+    }, 'Synthèse de collecte et de règlements récupérée');
   }
 
-  /**
-   * Relevé financier d'un vendeur (chiffre d'affaires brut, commissions prélevées, gains nets)
-   */
   public static async getSellerFinancials(req: Request, res: Response): Promise<Response> {
     const rawId = req.params.sellerId || (typeof req.query.sellerId === 'string' ? req.query.sellerId : '');
     const sellerId = (Array.isArray(rawId) ? rawId[0] : rawId) || '';
-
-    const seller = AgroStore.sellerProfiles.get(sellerId);
-    if (!seller) {
-      return sendError(res, `Profil vendeur '${sellerId}' introuvable`, 404, 'SELLER_NOT_FOUND');
+    const isAdmin = req.user?.roles?.includes('ADMIN') || req.user?.role === 'ADMIN';
+    if (!isAdmin && req.user?.sellerId !== sellerId) {
+      return sendError(res, 'Vous ne pouvez consulter que vos propres règlements.', 403, 'FORBIDDEN_FINANCE_ACCESS');
     }
 
-    // Vérification d'appartenance
-    if (req.user && !req.user.roles?.includes('ADMIN') && req.user.role !== 'ADMIN') {
-      const userSeller = Array.from(AgroStore.sellerProfiles.values()).find((s) => s.userId === req.user!.userId);
-      if (!userSeller || userSeller.id !== sellerId) {
-        return sendError(
-          res,
-          'Accès interdit : vous ne pouvez consulter que vos propres relevés financiers',
-          403,
-          'FORBIDDEN_FINANCE_ACCESS'
-        );
-      }
+    const result = await dbManager.query(
+      `SELECT s."id" AS "sellerId", s."businessName", fr."subOrderId", fr."grossAmountCdf"::text AS "grossAmountCdf",
+              fr."commissionRate"::text AS "commissionRate", fr."commissionAmountCdf"::text AS "commissionAmountCdf",
+              fr."sellerEarningsCdf"::text AS "sellerEarningsCdf", fr."status" AS "payoutStatus",
+              fr."recordedAt", fr."paidAt" AS "sellerConfirmedAt", so."subOrderNumber", so."status" AS "orderStatus",
+              d."status" AS "deliveryStatus", d."platformDepositReceivedAt"
+       FROM "financial_records" fr
+       JOIN "seller_profiles" s ON s."id" = fr."sellerId"
+       JOIN "sub_orders" so ON so."id" = fr."subOrderId"
+       LEFT JOIN "deliveries" d ON d."subOrderId" = so."id"
+       WHERE s."id"::text = $1
+       ORDER BY fr."recordedAt" DESC`,
+      [sellerId]
+    );
+    if (!result.rows.length) {
+      const seller = await dbManager.query('SELECT "id", "businessName" FROM "seller_profiles" WHERE "id"::text = $1 LIMIT 1', [sellerId]);
+      if (!seller.rows[0]) return sendError(res, `Profil vendeur '${sellerId}' introuvable`, 404, 'SELLER_NOT_FOUND');
     }
 
-    const sellerRecords = Array.from(AgroStore.financialRecords.values()).filter((r) => r.sellerId === sellerId);
-
-    let grossCdfScaled = 0n;
-    let grossUsdScaled = 0n;
-    let commCdfScaled = 0n;
-    let commUsdScaled = 0n;
-    let earningsCdfScaled = 0n;
-    let earningsUsdScaled = 0n;
-
-    for (const r of sellerRecords) {
-      grossCdfScaled = Money.add(grossCdfScaled, Money.toScaled(r.grossAmountCdf));
-      grossUsdScaled = Money.add(grossUsdScaled, Money.toScaled(r.grossAmountUsd));
-      commCdfScaled = Money.add(commCdfScaled, Money.toScaled(r.commissionAmountCdf));
-      commUsdScaled = Money.add(commUsdScaled, Money.toScaled(r.commissionAmountUsd));
-      earningsCdfScaled = Money.add(earningsCdfScaled, Money.toScaled(r.sellerEarningsCdf));
-      earningsUsdScaled = Money.add(earningsUsdScaled, Money.toScaled(r.sellerEarningsUsd));
-    }
-
+    const records = result.rows.map((row) => mapFinancialRecord(row as Record<string, unknown>));
+    const total = (key: 'grossAmountCdf' | 'commissionAmountCdf' | 'sellerEarningsCdf') =>
+      records.reduce((sum, record) => sum + Number(record[key] ?? 0), 0);
     return sendSuccess(res, {
-      sellerId: seller.id,
-      businessName: seller.businessName,
+      sellerId,
       summary: {
-        grossSalesCdf: Money.fromScaled(grossCdfScaled),
-        grossSalesUsd: Money.fromScaled(grossUsdScaled),
-        commissionsPaidCdf: Money.fromScaled(commCdfScaled),
-        commissionsPaidUsd: Money.fromScaled(commUsdScaled),
-        netEarningsCdf: Money.fromScaled(earningsCdfScaled),
-        netEarningsUsd: Money.fromScaled(earningsUsdScaled),
+        grossSalesCdf: total('grossAmountCdf'),
+        commissionCdf: total('commissionAmountCdf'),
+        sellerEarningsCdf: total('sellerEarningsCdf'),
       },
-      records: sellerRecords,
-    });
-  }
-
-  /**
-   * Traitement et validation d'un versement vendeur
-   */
-  public static async processPayout(req: Request, res: Response): Promise<Response> {
-    const rawId = req.params.subOrderId;
-    const subOrderId = (Array.isArray(rawId) ? rawId[0] : rawId) || '';
-    const { reference } = req.body;
-
-    const record = AgroStore.financialRecords.get(subOrderId);
-    if (!record) {
-      return sendError(res, `Dossier financier pour la sous-commande '${subOrderId}' introuvable`, 404, 'RECORD_NOT_FOUND');
-    }
-
-    record.status = 'COMPLETED';
-    record.paidAt = new Date();
-    record.payoutRef = reference || `PAYOUT-${Date.now()}`;
-
-    const subOrder = AgroStore.subOrders.get(subOrderId);
-    if (subOrder) {
-      subOrder.payoutStatus = 'COMPLETED';
-      subOrder.updatedAt = new Date();
-    }
-
-    return sendSuccess(res, record, 'Reversement vendeur validé avec succès');
-  }
-
-  public static async getCommissionRates(_req: Request, res: Response): Promise<Response> {
-    const rateSnapshot = AgroStore.getActiveExchangeRate();
-
-    return sendSuccess(res, {
-      platformCommissionPercent: 5.0,
-      description:
-        'Commission prélevée sur chaque sous-commande vendeur pour financer la plateforme et la sécurisation des transactions.',
-      currentExchangeRateSnapshot: {
-        rate: rateSnapshot.rate,
-        currencyPair: 'USD/CDF',
-        date: rateSnapshot.effectiveFrom,
-      },
-      payoutRule:
-        'Les reversements aux vendeurs sont débloqués après validation de la livraison ou confirmation de bonne réception.',
-    });
+      records,
+    }, 'Relevé de règlements vendeur récupéré');
   }
 }
