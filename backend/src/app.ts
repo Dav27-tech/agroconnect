@@ -1,10 +1,11 @@
 import express, { Express, Request, Response } from 'express';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import cors from 'cors';
 import helmet from 'helmet';
 import { env } from './config/env.js';
 import { DRC_PROVINCES, SUPPORTED_CURRENCIES } from './config/drc.js';
 import { dbManager } from './database/client.js';
-import { AgroStore } from './database/store.js';
 import { errorHandler } from './common/middleware/error.middleware.js';
 import { requestLogger } from './common/middleware/logger.middleware.js';
 import { rateLimiter } from './common/middleware/rateLimiter.middleware.js';
@@ -22,7 +23,6 @@ import { inventoryRoutes } from './modules/inventory/inventory.routes.js';
 import { sellerServicesRoutes } from './modules/seller-services/seller-services.routes.js';
 import { cartRoutes } from './modules/cart/cart.routes.js';
 import { orderRoutes } from './modules/orders/order.routes.js';
-import { paymentRoutes } from './modules/payments/payment.routes.js';
 import { deliveryRoutes } from './modules/deliveries/delivery.routes.js';
 import { notificationRoutes } from './modules/notifications/notification.routes.js';
 import { financeRoutes } from './modules/finance/finance.routes.js';
@@ -30,19 +30,19 @@ import { adminRoutes } from './modules/admin/admin.routes.js';
 
 export function createApp(): Express {
   const app = express();
+  const uploadsDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../uploads');
+  const allowedOrigins = env.CORS_ORIGIN.split(',').map((origin) => origin.trim()).filter(Boolean);
 
-  // 1. Sécurité et en-têtes HTTP (désactivation sélective CSP pour Swagger UI)
-  app.use(
-    helmet({
-      contentSecurityPolicy: false,
-    })
-  );
+  // 1. En-têtes HTTP sécurisés
+  app.use(helmet());
   app.use(
     cors({
-      origin: env.CORS_ORIGIN,
-      credentials: true,
+      origin: (origin, callback) => {
+        callback(null, !origin || allowedOrigins.includes(origin));
+      },
+      credentials: false,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization', 'X-Correlation-ID', 'X-Session-ID'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Correlation-ID', 'X-Session-ID', 'Idempotency-Key'],
     })
   );
 
@@ -51,12 +51,12 @@ export function createApp(): Express {
   app.use(requestLogger);
 
   // 3. Analyseurs de corps de requête
-  app.use(express.json({ limit: '10mb' }));
-  app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+  app.use(express.json({ limit: '1mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '100kb' }));
+  app.use('/uploads', express.static(uploadsDirectory, { dotfiles: 'deny', index: false }));
 
   // 4. Point de terminaison de santé (Health check)
   app.get('/api/health', async (_req: Request, res: Response) => {
-    const rateSnapshot = AgroStore.getActiveExchangeRate();
     const dbStatus = dbManager.getStatus();
 
     return sendSuccess(
@@ -69,12 +69,6 @@ export function createApp(): Express {
         country: 'République Démocratique du Congo (RDC)',
         provincesCount: DRC_PROVINCES.length,
         supportedCurrencies: SUPPORTED_CURRENCIES,
-        exchangeRateSnapshot: {
-          pair: `${rateSnapshot.baseCurrency}/${rateSnapshot.targetCurrency}`,
-          rate: rateSnapshot.rate,
-          source: rateSnapshot.source,
-          effectiveDate: rateSnapshot.effectiveFrom,
-        },
         database: dbStatus,
         criticalBusinessRule:
           'Intermédiaire strict : AgroConnect n\'achète, ne stocke, ne possède ni ne revend aucun produit agricole.',
@@ -96,6 +90,10 @@ export function createApp(): Express {
     res.json(openApiSpecification);
   });
   v1.get('/docs', (_req: Request, res: Response) => {
+    res.setHeader(
+      'Content-Security-Policy',
+      "default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com; style-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+    );
     res.setHeader('Content-Type', 'text/html');
     res.send(getSwaggerHtml());
   });
@@ -110,7 +108,6 @@ export function createApp(): Express {
   v1.use('/seller-services', sellerServicesRoutes);
   v1.use('/cart', cartRoutes);
   v1.use('/orders', orderRoutes);
-  v1.use('/payments', paymentRoutes);
   v1.use('/deliveries', deliveryRoutes);
   v1.use('/notifications', notificationRoutes);
   v1.use('/finance', financeRoutes);
